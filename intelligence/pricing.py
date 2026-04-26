@@ -25,7 +25,7 @@ class PricingEngine:
         New columns:
             - ``discount_percentage``: ``1 - floor_price / mrp`` (0–100).
             - ``price_ratio``: ``floor_price / mrp`` (0–1).
-            - ``market_gap``: ``(market_price - floor_price) / market_price``.
+            - ``market_gap``: ``(real_price - floor_price) / real_price``.
             - ``wholesale_gap``: ``(wholesale_price - floor_price) / wholesale_price``.
         """
         logger.info("Computing pricing metrics for %d rows", len(df))
@@ -33,13 +33,34 @@ class PricingEngine:
 
         floor = pd.to_numeric(out["floor_price"], errors="coerce")
         mrp = pd.to_numeric(out["mrp"], errors="coerce")
-        market = pd.to_numeric(out.get("market_price"), errors="coerce")
+        amazon = pd.to_numeric(out.get("amazon_price"), errors="coerce")
         wholesale = pd.to_numeric(out.get("wholesale_price"), errors="coerce")
+
+        # Fallback category price
+        # Using a simple heuristic for fallback_category_price if not defined explicitly elsewhere:
+        # If expected_sell_price_vs_mrp exists in config we could use it, but keeping it self-contained:
+        fallback_category_price = mrp * 0.45
+
+        # Pricing strategy
+        # real_price = min(amazon_price * 0.7, wholesale_price (if available), fallback_category_price)
+
+        real_price = fallback_category_price.copy()
+
+        # apply amazon * 0.7
+        amazon_discounted = amazon * 0.7
+        mask_amazon = amazon_discounted.notna() & (amazon_discounted < real_price.fillna(np.inf))
+        real_price.loc[mask_amazon] = amazon_discounted.loc[mask_amazon]
+
+        # apply wholesale
+        mask_wholesale = wholesale.notna() & (wholesale < real_price.fillna(np.inf))
+        real_price.loc[mask_wholesale] = wholesale.loc[mask_wholesale]
+
+        out["real_price"] = real_price
 
         with np.errstate(divide="ignore", invalid="ignore"):
             price_ratio = floor / mrp
             discount = (1.0 - price_ratio) * 100.0
-            market_gap = (market - floor) / market * 100.0
+            market_gap = (real_price - floor) / real_price * 100.0
             wholesale_gap = (wholesale - floor) / wholesale * 100.0
 
         out["price_ratio"] = price_ratio.round(4)

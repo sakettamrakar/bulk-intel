@@ -34,13 +34,48 @@ class PriceProvider(Protocol):
 
     name: str
 
-    def lookup(self, row: pd.Series) -> tuple[float | None, float | None]:
-        """Return ``(market_price, wholesale_price)`` for a manifest row.
+    def lookup(self, row: pd.Series) -> tuple[float | None, float | None, float]:
+        """Return ``(amazon_price, wholesale_price, match_confidence)`` for a manifest row.
 
-        Either field may be ``None`` if the provider has no signal.
+        Either field may be ``None`` if the provider has no signal. match_confidence is a float 0.0-1.0.
         """
         ...
 
+
+
+import difflib
+
+@dataclass(frozen=True)
+class FuzzyCatalogPriceProvider:
+    """Resolve prices by fuzzy matching product names against a catalog."""
+    catalog: list[dict] # list of dicts with 'product_name', 'amazon_price', 'wholesale_price'
+    name: str = "fuzzy_catalog"
+    confidence_threshold: float = 0.6
+
+    def lookup(self, row: pd.Series) -> tuple[float | None, float | None, float]:
+        name = row.get("product_name_clean") or row.get("product_name")
+        if not isinstance(name, str) or not name:
+            return (None, None, 0.0)
+
+        best_match = None
+        best_ratio = 0.0
+        name_lower = name.lower()
+
+        for item in self.catalog:
+            cat_name = item.get("product_name", "")
+            if not cat_name:
+                continue
+            ratio = difflib.SequenceMatcher(None, name_lower, cat_name.lower()).ratio()
+            if ratio > best_ratio:
+                best_ratio = ratio
+                best_match = item
+
+        if best_match and best_ratio >= self.confidence_threshold:
+            amazon = best_match.get("amazon_price")
+            wholesale = best_match.get("wholesale_price")
+            return (amazon, wholesale, best_ratio)
+
+        return (None, None, best_ratio)
 
 # ---------------------------------------------------------------------------
 # Concrete providers
@@ -58,11 +93,12 @@ class LookupTablePriceProvider:
     table: Mapping[str, tuple[float | None, float | None]]
     name: str = "lookup_table"
 
-    def lookup(self, row: pd.Series) -> tuple[float | None, float | None]:
+    def lookup(self, row: pd.Series) -> tuple[float | None, float | None, float]:
         sku = row.get("sku")
         if not isinstance(sku, str):
-            return (None, None)
-        return self.table.get(sku, (None, None))
+            return (None, None, 0.0)
+        res = self.table.get(sku, (None, None))
+        return (res[0], res[1], 1.0)
 
 
 @dataclass(frozen=True)
@@ -80,17 +116,17 @@ class MRPHeuristicPriceProvider:
     wholesale_pct_of_mrp: float | None = None
     name: str = "mrp_heuristic"
 
-    def lookup(self, row: pd.Series) -> tuple[float | None, float | None]:
+    def lookup(self, row: pd.Series) -> tuple[float | None, float | None, float]:
         mrp = row.get("mrp")
         if mrp is None or pd.isna(mrp):
-            return (None, None)
+            return (None, None, 0.0)
         market = float(mrp) * self.market_pct_of_mrp
         wholesale = (
             float(mrp) * self.wholesale_pct_of_mrp
             if self.wholesale_pct_of_mrp is not None
             else None
         )
-        return (market, wholesale)
+        return (market, wholesale, 1.0)
 
 
 # ---------------------------------------------------------------------------
@@ -120,23 +156,29 @@ class Enricher:
             [p.name for p in self.providers],
         )
         out = df.copy()
-        market = np.full(len(out), np.nan)
+        amazon = np.full(len(out), np.nan)
         wholesale = np.full(len(out), np.nan)
+        confidence = np.full(len(out), 0.0)
+        unreliable = np.full(len(out), False, dtype=bool)
         sources: list[str] = ["" for _ in range(len(out))]
 
         for idx, row in out.iterrows():
-            row_market, row_wholesale, source_label = self._resolve_row(row)
-            market[idx] = row_market if row_market is not None else np.nan
+            row_amazon, row_wholesale, row_conf, source_label = self._resolve_row(row)
+            amazon[idx] = row_amazon if row_amazon is not None else np.nan
             wholesale[idx] = row_wholesale if row_wholesale is not None else np.nan
+            confidence[idx] = row_conf
+            unreliable[idx] = row_conf < 0.6  # Unreliable match if confidence < 0.6
             sources[idx] = source_label
 
-        out["market_price"] = market
+        out["amazon_price"] = amazon
         out["wholesale_price"] = wholesale
+        out["match_confidence"] = confidence
+        out["unreliable_match"] = unreliable
         out["enrichment_source"] = sources
 
         logger.info(
-            "Market prices resolved=%d/%d; wholesale resolved=%d/%d",
-            out["market_price"].notna().sum(),
+            "Amazon prices resolved=%d/%d; wholesale resolved=%d/%d",
+            out["amazon_price"].notna().sum(),
             len(out),
             out["wholesale_price"].notna().sum(),
             len(out),
@@ -145,29 +187,34 @@ class Enricher:
 
     def _resolve_row(
         self, row: pd.Series
-    ) -> tuple[float | None, float | None, str]:
-        market: float | None = None
+    ) -> tuple[float | None, float | None, float, str]:
+        amazon: float | None = None
         wholesale: float | None = None
+        best_conf = 0.0 # default to 0.0 so unmatched items are marked unreliable
         contributing: list[str] = []
 
         for provider in self.providers:
-            if market is not None and wholesale is not None:
+            if amazon is not None and wholesale is not None:
                 break
             try:
-                m, w = provider.lookup(row)
+                m, w, conf = provider.lookup(row)
             except Exception:  # pragma: no cover - defensive
                 logger.exception("Provider '%s' failed for sku=%s", provider.name, row.get("sku"))
                 continue
 
-            if market is None and m is not None:
-                market = float(m)
+            if amazon is None and m is not None:
+                amazon = float(m)
+                best_conf = conf
                 contributing.append(provider.name)
             if wholesale is None and w is not None:
                 wholesale = float(w)
+                # If we matched amazon via fuzzy, we'd have that confidence. Else use this one.
+                # Usually wholesale is heuristic/lookup so conf=1.0. If we only have wholesale, best_conf becomes conf.
+                best_conf = min(best_conf, conf) if amazon is not None else conf
                 if provider.name not in contributing:
                     contributing.append(provider.name)
 
-        return market, wholesale, "+".join(contributing)
+        return amazon, wholesale, best_conf, "+".join(contributing)
 
 
 def enrich_manifest(

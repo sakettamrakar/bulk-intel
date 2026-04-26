@@ -89,7 +89,7 @@ class ScoringEngine:
 
     def _condition_risk(self, df: pd.DataFrame) -> pd.Series:
         """Per-row risk contribution from the normalized condition bucket."""
-        factors = self.settings.condition_factors
+        factors = self.settings.condition_to_sell_through
         col = (
             df.get("condition_normalized")
             if "condition_normalized" in df.columns

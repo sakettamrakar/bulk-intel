@@ -23,6 +23,7 @@ CANONICAL_COLUMNS: tuple[str, ...] = (
     "sku",
     "product_name",
     "category",
+    "raw_category",
     "brand",
     "quantity",
     "mrp",
@@ -143,7 +144,7 @@ class ManifestLoader:
 
     def _normalize_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         renamed = df.rename(columns={c: _canon_key(c) for c in df.columns})
-        renamed = self._collapse_category_levels(renamed)
+        renamed = self._retain_raw_category(renamed)
         rename_map = {c: COLUMN_ALIASES[c] for c in renamed.columns if c in COLUMN_ALIASES}
         renamed = renamed.rename(columns=rename_map)
 
@@ -161,32 +162,29 @@ class ManifestLoader:
         return renamed[list(CANONICAL_COLUMNS) + extras]
 
     @staticmethod
-    def _collapse_category_levels(df: pd.DataFrame) -> pd.DataFrame:
-        """Collapse hierarchical Category L1..Ln columns into a single ``category``.
-
-        Bulk4Traders manifests carry up to six category levels.  We pick
-        the deepest non-empty level row-by-row; that's almost always the
-        most informative one for sellability scoring.
+    def _retain_raw_category(df: pd.DataFrame) -> pd.DataFrame:
+        """Retain hierarchical Category L1..Ln columns and map them to raw_category.
+        We stop collapsing categories early.
         """
         level_cols = sorted(
-            (c for c in df.columns if re.fullmatch(r"category_l\d+", c)),
-            key=lambda c: int(c.rsplit("l", 1)[-1]),
+            (c for c in df.columns if re.fullmatch(r"category_l\d+", c) or c == "category"),
         )
         if not level_cols:
             return df
 
         df = df.copy()
+
+        # Combine existing category columns into raw_category
+        def combine_cats(row):
+            cats = [str(row[c]).strip() for c in level_cols if pd.notna(row[c]) and str(row[c]).strip()]
+            return " > ".join(cats) if cats else pd.NA
+
+        df["raw_category"] = df.apply(combine_cats, axis=1)
+
+        # we will extract a category column for pipeline dependencies but leave raw_category
         if "category" not in df.columns:
-            df["category"] = pd.NA
+            df["category"] = df["raw_category"]
 
-        existing = df["category"].astype("string")
-        levels = df[level_cols].astype("string")
-        deepest = levels.apply(_pick_deepest_category, axis=1)
-
-        # Prefer the original `category` value when present, else the deepest level.
-        df["category"] = existing.where(existing.notna() & (existing.str.len() > 0), deepest)
-        df = df.drop(columns=level_cols)
-        logger.debug("Collapsed %d category-level columns", len(level_cols))
         return df
 
     def _coerce_types(self, df: pd.DataFrame) -> pd.DataFrame:

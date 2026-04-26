@@ -42,16 +42,20 @@ class ProfitEngine:
         qty = pd.to_numeric(out["quantity"], errors="coerce").fillna(1)
         floor = pd.to_numeric(out["floor_price"], errors="coerce")
         mrp = pd.to_numeric(out["mrp"], errors="coerce")
-        market = pd.to_numeric(out.get("market_price"), errors="coerce")
 
-        sell_factor, sellable_factor = self._condition_multipliers(out)
+        # We now expect real_price to be provided by the PricingEngine
+        if "real_price" in out:
+            real_price = pd.to_numeric(out["real_price"], errors="coerce")
+        else:
+            real_price = mrp * a["expected_sell_price_vs_mrp"]
+
+        sellable_factor = self._condition_multipliers(out)
 
         effective_sellable_pct = a["expected_sellable_pct"] * sellable_factor
         sellable_qty = (qty * effective_sellable_pct).round(2)
-        # Prefer market price as the anchor; fall back to MRP × assumption.
-        anchor_from_mrp = mrp * a["expected_sell_price_vs_mrp"]
-        base_sell_price = market.where(market.notna(), anchor_from_mrp)
-        expected_sell_price = base_sell_price * sell_factor
+
+        # No double discounting: real_price is the final expected_sell_price
+        expected_sell_price = real_price
 
         with np.errstate(invalid="ignore"):
             expected_revenue = sellable_qty * expected_sell_price
@@ -90,16 +94,15 @@ class ProfitEngine:
 
     def _condition_multipliers(
         self, df: pd.DataFrame
-    ) -> tuple[pd.Series, pd.Series]:
-        """Return ``(sell_price_factor, sellable_factor)`` per row."""
-        factors = self.settings.condition_factors
+    ) -> pd.Series:
+        """Return ``sellable_factor`` per row. Condition affects only sellable factor."""
+        factors = self.settings.condition_to_sell_through
         if "condition_normalized" in df.columns:
             col = df["condition_normalized"].fillna("unknown")
         else:
             col = pd.Series(["unknown"] * len(df), index=df.index)
-        sell_price = col.map(lambda c: factors.get(c, factors["unknown"])["sell_price_factor"]).astype(float)
         sellable = col.map(lambda c: factors.get(c, factors["unknown"])["sellable_factor"]).astype(float)
-        return sell_price, sellable
+        return sellable
 
 
 def compute_profitability(

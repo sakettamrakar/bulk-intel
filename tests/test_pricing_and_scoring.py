@@ -34,8 +34,34 @@ def test_scoring_produces_0_to_100(tiny_manifest_df):
 
 
 def test_high_discount_known_brand_scores_higher(tiny_manifest_df):
-    df = _prep(tiny_manifest_df)
+    # Need equivalent discounts/market gaps to isolate brand score
+    df = pd.DataFrame([
+        {
+            "sku": "A1",
+            "product_name": "Samsung Galaxy S22",
+            "category": "electronics",
+            "brand": "samsung",
+            "mrp": 1000.0,
+            "floor_price": 200.0, # 80% discount
+            "quantity": 10,
+            "condition": "New",
+        },
+        {
+            "sku": "A2",
+            "product_name": "Generic Phone",
+            "category": "electronics",
+            "brand": "unknown",
+            "mrp": 1000.0,
+            "floor_price": 200.0, # 80% discount
+            "quantity": 10,
+            "condition": "New",
+        }
+    ])
+    df = _prep(df)
+    df["amazon_price"] = 800.0
+    df = compute_pricing_metrics(df)
     df = compute_scores(df)
+
     samsung = df.loc[df["sku"] == "A1", "sellability_score"].iloc[0]
     generic = df.loc[df["sku"] == "A2", "sellability_score"].iloc[0]
     assert samsung > generic
