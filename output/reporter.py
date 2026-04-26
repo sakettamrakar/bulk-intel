@@ -18,6 +18,7 @@ PRIMARY_COLUMNS: tuple[str, ...] = (
     "product_name_clean",
     "brand",
     "category",
+    "condition_normalized",
     "quantity",
     "mrp",
     "floor_price",
@@ -30,6 +31,7 @@ PRIMARY_COLUMNS: tuple[str, ...] = (
     "expected_revenue",
     "expected_profit",
     "expected_margin_pct",
+    "expected_roi_pct",
     "recommendation",
     "reasoning",
 )
@@ -83,42 +85,49 @@ class Reporter:
             return "No rows in manifest.\n"
 
         rec = df.get("recommendation", pd.Series(dtype="string")).fillna("")
-        buy = int((rec == "BUY").sum())
-        review = int((rec == "REVIEW").sum())
-        skip = int((rec == "SKIP").sum())
-
-        total_profit = float(df.get("expected_profit", pd.Series(dtype=float)).sum(skipna=True))
-        total_revenue = float(df.get("expected_revenue", pd.Series(dtype=float)).sum(skipna=True))
-        avg_margin = float(df.get("expected_margin_pct", pd.Series(dtype=float)).mean(skipna=True) or 0.0)
-
-        top_buys = df[df["recommendation"] == "BUY"].head(5) if "recommendation" in df.columns else df.head(0)
+        counts = {label: int((rec == label).sum()) for label in ("BUY", "REVIEW", "SKIP")}
 
         lines: list[str] = []
-        lines.append("=" * 72)
+        lines.append("=" * 78)
         lines.append("LIQUIDATION INTELLIGENCE — MANIFEST SUMMARY")
-        lines.append("=" * 72)
+        lines.append("=" * 78)
         lines.append(f"Total rows           : {total}")
-        lines.append(f"Recommendation BUY   : {buy}")
-        lines.append(f"Recommendation REVIEW: {review}")
-        lines.append(f"Recommendation SKIP  : {skip}")
+        lines.append(f"  BUY                : {counts['BUY']}")
+        lines.append(f"  REVIEW             : {counts['REVIEW']}")
+        lines.append(f"  SKIP               : {counts['SKIP']}")
         lines.append("")
-        lines.append(f"Projected revenue    : {total_revenue:,.2f}")
-        lines.append(f"Projected profit     : {total_profit:,.2f}")
-        lines.append(f"Average margin       : {avg_margin:.2f}%")
-        lines.append("")
-        lines.append("Top BUY candidates:")
+
+        for label in ("BUY", "REVIEW"):
+            subset = df[rec == label]
+            if subset.empty:
+                continue
+            revenue = float(subset["expected_revenue"].sum(skipna=True))
+            cost = float(subset["expected_cost"].sum(skipna=True))
+            profit = float(subset["expected_profit"].sum(skipna=True))
+            roi = (profit / cost * 100.0) if cost > 0 else 0.0
+            lines.append(f"--- {label} basket ({len(subset)} items) ---")
+            lines.append(f"  projected revenue: {revenue:>14,.2f}")
+            lines.append(f"  projected cost   : {cost:>14,.2f}")
+            lines.append(f"  projected profit : {profit:>14,.2f}")
+            lines.append(f"  projected ROI    : {roi:>13,.1f}%")
+            lines.append("")
+
+        top_buys = df[rec == "BUY"].head(10)
+        lines.append("Top BUY candidates (by sellability):")
         if top_buys.empty:
             lines.append("  (none — review thresholds in config/settings.py)")
         else:
             for _, row in top_buys.iterrows():
+                name = str(row.get("product_name_clean", ""))[:48]
                 lines.append(
-                    f"  - {row.get('sku', ''):<14} "
-                    f"{str(row.get('product_name_clean',''))[:48]:<48} "
+                    f"  - {str(row.get('sku', '')):<28} "
+                    f"{name:<48} "
                     f"sell={row.get('sellability_score', 0):>5.1f} "
                     f"risk={row.get('risk_score', 0):>5.1f} "
-                    f"profit={row.get('expected_profit', 0):>10.2f}"
+                    f"ROI={row.get('expected_roi_pct', 0):>6.1f}% "
+                    f"profit={row.get('expected_profit', 0):>9.2f}"
                 )
-        lines.append("=" * 72)
+        lines.append("=" * 78)
         return "\n".join(lines) + "\n"
 
 

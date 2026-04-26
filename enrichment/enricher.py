@@ -73,7 +73,10 @@ class MRPHeuristicPriceProvider:
     so the rest of the pipeline always has something to score.
     """
 
-    market_pct_of_mrp: float = 0.85
+    # Anchors the "new-condition" online selling price.  Condition
+    # factors in profit.py mark this down for refurb / used / as-is /
+    # not-tested goods so we don't double-discount.
+    market_pct_of_mrp: float = 0.80
     wholesale_pct_of_mrp: float | None = None
     name: str = "mrp_heuristic"
 

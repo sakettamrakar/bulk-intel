@@ -77,13 +77,25 @@ class ScoringEngine:
             df["category"].str.lower().map(self.settings.category_risk).fillna(60.0)
         )
         thin_margin = self._thin_margin_penalty(df["discount_percentage"])
+        condition_risk = self._condition_risk(df)
 
         return (
             missing * weights["missing_data_penalty"]
             + low_qty * weights["low_quantity_penalty"]
             + category_risk * weights["category_risk"]
             + thin_margin * weights["thin_margin_penalty"]
+            + condition_risk * weights.get("condition_risk", 0.0)
         )
+
+    def _condition_risk(self, df: pd.DataFrame) -> pd.Series:
+        """Per-row risk contribution from the normalized condition bucket."""
+        factors = self.settings.condition_factors
+        col = (
+            df.get("condition_normalized")
+            if "condition_normalized" in df.columns
+            else pd.Series(["unknown"] * len(df), index=df.index)
+        )
+        return col.map(lambda c: factors.get(c, factors["unknown"])["risk_score"]).astype(float)
 
     @staticmethod
     def _missing_data_penalty(df: pd.DataFrame) -> pd.Series:

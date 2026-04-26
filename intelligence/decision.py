@@ -67,16 +67,16 @@ class DecisionEngine:
         sellability = _safe_float(row.get("sellability_score"))
         risk = _safe_float(row.get("risk_score"))
         margin = _safe_float(row.get("expected_margin_pct"))
+        roi = _safe_float(row.get("expected_roi_pct"))
         profit = _safe_float(row.get("expected_profit"))
 
         reasons: list[str] = []
         score_pass = sellability >= thresholds["buy_score_min"]
         risk_pass = risk <= thresholds["risk_score_max"]
         margin_pass = margin >= thresholds["min_expected_margin_pct"]
+        roi_pass = roi >= thresholds.get("min_expected_roi_pct", 0.0)
         profit_pass = profit > 0
 
-        # Positive signals — recorded only when the gate is cleared so the
-        # narrative reads as a justification, not a checklist.
         if score_pass:
             reasons.append(f"sellability {sellability:.0f} ≥ {thresholds['buy_score_min']:.0f}")
         else:
@@ -98,15 +98,21 @@ class DecisionEngine:
                 f"margin {margin:.1f}% below {thresholds['min_expected_margin_pct']:.1f}%"
             )
 
+        roi_threshold = thresholds.get("min_expected_roi_pct", 0.0)
+        if roi_pass:
+            reasons.append(f"ROI {roi:.1f}% ≥ {roi_threshold:.1f}%")
+        else:
+            reasons.append(f"ROI {roi:.1f}% below {roi_threshold:.1f}%")
+
         if not profit_pass:
             reasons.append("expected profit non-positive")
 
-        gates = [score_pass, risk_pass, margin_pass, profit_pass]
+        gates = [score_pass, risk_pass, margin_pass, roi_pass, profit_pass]
         passes = sum(gates)
 
         if all(gates):
             recommendation = BUY
-        elif passes >= 2 and risk_pass:
+        elif passes >= 3 and risk_pass and profit_pass:
             recommendation = REVIEW
         else:
             recommendation = SKIP
