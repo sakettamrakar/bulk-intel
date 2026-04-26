@@ -1,0 +1,13 @@
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+pyyaml>=6.0
+python-dateutil>=2.8.0
+
+# Optional API layer (used in future iterations)
+fastapi>=0.110.0
+uvicorn>=0.29.0
+
+# Development
+pytest>=7.4.0
+pytest-cov>=4.1.0
