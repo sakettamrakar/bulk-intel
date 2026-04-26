@@ -46,7 +46,11 @@ _CATEGORY_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
                      "earbud", "earphone", "speaker", "tv", "monitor",
                      "camera", "smartwatch", "router", "charger", "cable")),
     ("kitchen",     ("mixer", "grinder", "kettle", "toaster", "cookware",
-                     "pan", "pressure cooker", "blender", "microwave")),
+                     "pan", "pressure cooker", "blender", "microwave",
+                     "stove", "burner", "hob", "cooktop", "induction",
+                     "tawa", "kadai", "tadka", "chimney", "oven", "fryer",
+                     "casserole", "tiffin", "lunchbox", "bottle", "jar",
+                     "knife", "container")),
     ("home",        ("bedsheet", "pillow", "curtain", "lamp", "vacuum",
                      "iron", "fan", "heater", "rug")),
     ("apparel",     ("shirt", "tshirt", "jeans", "trouser", "kurta",
@@ -74,6 +78,7 @@ class ManifestCleaner:
         out["keywords"] = out["product_name_clean"].map(self._extract_keywords)
         out["brand"] = self._fill_brand(out)
         out["category"] = self._fill_category(out)
+        out["condition_normalized"] = out["condition"].map(_normalize_condition)
 
         # Standardise numeric fields: clip negatives to NaN, ensure floats.
         for col in ("mrp", "floor_price"):
@@ -85,9 +90,10 @@ class ManifestCleaner:
         )
 
         logger.info(
-            "Cleaning complete. Brands resolved=%d, categories resolved=%d",
+            "Cleaning complete. Brands resolved=%d, categories resolved=%d, conditions normalized=%d",
             out["brand"].notna().sum(),
             (out["category"].fillna("unknown") != "unknown").sum(),
+            (out["condition_normalized"].fillna("unknown") != "unknown").sum(),
         )
         return out
 
@@ -162,6 +168,29 @@ class ManifestCleaner:
 def clean_manifest(df: pd.DataFrame, settings: Settings | None = None) -> pd.DataFrame:
     """Functional wrapper around :class:`ManifestCleaner`."""
     return ManifestCleaner(settings or get_settings()).clean(df)
+
+
+# Condition string → canonical bucket used by ``CONDITION_FACTORS``.
+_CONDITION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\b(brand\s*new|sealed|new\s*in\s*box|nib)\b", re.I), "sealed"),
+    (re.compile(r"\bnew\b", re.I), "new"),
+    (re.compile(r"\b(open\s*box|customer\s*return)\b", re.I), "open_box"),
+    (re.compile(r"\brefurb(ished)?\b", re.I), "refurbished"),
+    (re.compile(r"\b(used|pre[-\s]?owned)\b", re.I), "used"),
+    (re.compile(r"\b(as[-\s]?is|asis)\b", re.I), "as_is"),
+    (re.compile(r"\bnot\s*tested\b", re.I), "not_tested"),
+    (re.compile(r"\bsalvage\b", re.I), "salvage"),
+)
+
+
+def _normalize_condition(value: object) -> str:
+    """Map free-text condition labels to a canonical bucket."""
+    if not isinstance(value, str) or not value.strip():
+        return "unknown"
+    for pattern, label in _CONDITION_PATTERNS:
+        if pattern.search(value):
+            return label
+    return "unknown"
 
 
 def _keyword_hit(keyword: str, haystack: str) -> bool:

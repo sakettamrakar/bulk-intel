@@ -44,10 +44,14 @@ class ProfitEngine:
         mrp = pd.to_numeric(out["mrp"], errors="coerce")
         market = pd.to_numeric(out.get("market_price"), errors="coerce")
 
-        sellable_qty = (qty * a["expected_sellable_pct"]).round(2)
+        sell_factor, sellable_factor = self._condition_multipliers(out)
+
+        effective_sellable_pct = a["expected_sellable_pct"] * sellable_factor
+        sellable_qty = (qty * effective_sellable_pct).round(2)
         # Prefer market price as the anchor; fall back to MRP × assumption.
         anchor_from_mrp = mrp * a["expected_sell_price_vs_mrp"]
-        expected_sell_price = market.where(market.notna(), anchor_from_mrp)
+        base_sell_price = market.where(market.notna(), anchor_from_mrp)
+        expected_sell_price = base_sell_price * sell_factor
 
         with np.errstate(invalid="ignore"):
             expected_revenue = sellable_qty * expected_sell_price
@@ -61,12 +65,20 @@ class ProfitEngine:
                 np.nan,
             )
 
+        with np.errstate(invalid="ignore", divide="ignore"):
+            roi_pct = np.where(
+                expected_cost > 0,
+                (expected_profit / expected_cost) * 100.0,
+                np.nan,
+            )
+
         out["expected_sellable_qty"] = sellable_qty
         out["expected_sell_price"] = expected_sell_price.round(2)
         out["expected_revenue"] = expected_revenue.round(2)
         out["expected_cost"] = expected_cost.round(2)
         out["expected_profit"] = expected_profit.round(2)
         out["expected_margin_pct"] = pd.Series(margin_pct, index=out.index).round(2)
+        out["expected_roi_pct"] = pd.Series(roi_pct, index=out.index).round(2)
 
         logger.debug(
             "Profit summary: total expected profit=%.2f over %d rows",
@@ -74,6 +86,20 @@ class ProfitEngine:
             len(out),
         )
         return out
+
+
+    def _condition_multipliers(
+        self, df: pd.DataFrame
+    ) -> tuple[pd.Series, pd.Series]:
+        """Return ``(sell_price_factor, sellable_factor)`` per row."""
+        factors = self.settings.condition_factors
+        if "condition_normalized" in df.columns:
+            col = df["condition_normalized"].fillna("unknown")
+        else:
+            col = pd.Series(["unknown"] * len(df), index=df.index)
+        sell_price = col.map(lambda c: factors.get(c, factors["unknown"])["sell_price_factor"]).astype(float)
+        sellable = col.map(lambda c: factors.get(c, factors["unknown"])["sellable_factor"]).astype(float)
+        return sell_price, sellable
 
 
 def compute_profitability(

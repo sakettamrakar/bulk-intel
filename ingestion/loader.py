@@ -38,6 +38,8 @@ COLUMN_ALIASES: Mapping[str, str] = {
     "item_id": "sku",
     "product_id": "sku",
     "asin": "sku",
+    "tag_number": "sku",
+    "inventory_id": "sku",
     # Product description
     "product_name": "product_name",
     "product": "product_name",
@@ -60,6 +62,8 @@ COLUMN_ALIASES: Mapping[str, str] = {
     "stock": "quantity",
     # MRP / RRP
     "mrp": "mrp",
+    "mrp_in_inr": "mrp",
+    "mrp_inr": "mrp",
     "retail_price": "mrp",
     "rrp": "mrp",
     "list_price": "mrp",
@@ -139,6 +143,7 @@ class ManifestLoader:
 
     def _normalize_columns(self, df: pd.DataFrame) -> pd.DataFrame:
         renamed = df.rename(columns={c: _canon_key(c) for c in df.columns})
+        renamed = self._collapse_category_levels(renamed)
         rename_map = {c: COLUMN_ALIASES[c] for c in renamed.columns if c in COLUMN_ALIASES}
         renamed = renamed.rename(columns=rename_map)
 
@@ -154,6 +159,35 @@ class ManifestLoader:
         # Reorder so canonical columns come first; preserve any extras.
         extras = [c for c in renamed.columns if c not in CANONICAL_COLUMNS]
         return renamed[list(CANONICAL_COLUMNS) + extras]
+
+    @staticmethod
+    def _collapse_category_levels(df: pd.DataFrame) -> pd.DataFrame:
+        """Collapse hierarchical Category L1..Ln columns into a single ``category``.
+
+        Bulk4Traders manifests carry up to six category levels.  We pick
+        the deepest non-empty level row-by-row; that's almost always the
+        most informative one for sellability scoring.
+        """
+        level_cols = sorted(
+            (c for c in df.columns if re.fullmatch(r"category_l\d+", c)),
+            key=lambda c: int(c.rsplit("l", 1)[-1]),
+        )
+        if not level_cols:
+            return df
+
+        df = df.copy()
+        if "category" not in df.columns:
+            df["category"] = pd.NA
+
+        existing = df["category"].astype("string")
+        levels = df[level_cols].astype("string")
+        deepest = levels.apply(_pick_deepest_category, axis=1)
+
+        # Prefer the original `category` value when present, else the deepest level.
+        df["category"] = existing.where(existing.notna() & (existing.str.len() > 0), deepest)
+        df = df.drop(columns=level_cols)
+        logger.debug("Collapsed %d category-level columns", len(level_cols))
+        return df
 
     def _coerce_types(self, df: pd.DataFrame) -> pd.DataFrame:
         for col in NUMERIC_COLUMNS:
@@ -187,6 +221,24 @@ def load_manifest(path: str | Path, **kwargs) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 _CANON_RE = re.compile(r"[^a-z0-9]+")
+_CATEGORY_PLACEHOLDERS: frozenset[str] = frozenset(
+    {"others", "other", "misc", "miscellaneous", "n/a", "na", "none", "-"}
+)
+
+
+def _pick_deepest_category(row: pd.Series) -> str | None:
+    """Return the deepest non-empty, non-placeholder level value.
+
+    If only placeholder values ("Others", "Misc", ...) exist, return the
+    deepest of those so we still surface *something* for the cleaner.
+    """
+    cells = [v.strip() for v in row.tolist() if isinstance(v, str) and v.strip()]
+    if not cells:
+        return None
+    for value in reversed(cells):
+        if value.lower() not in _CATEGORY_PLACEHOLDERS:
+            return value
+    return cells[-1]
 
 
 def _canon_key(name: object) -> str:
