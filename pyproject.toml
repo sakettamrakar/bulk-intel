@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bulk-intel"
+version = "0.1.0"
+description = "Liquidation Intelligence Engine — manifest analysis, scoring and decisioning."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Bulk Intel" }]
+license = { text = "MIT" }
+dependencies = [
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "openpyxl>=3.1.0",
+    "pyyaml>=6.0",
+    "python-dateutil>=2.8.0",
+]
+
+[project.optional-dependencies]
+api = ["fastapi>=0.110.0", "uvicorn>=0.29.0"]
+dev = ["pytest>=7.4.0", "pytest-cov>=4.1.0"]
+
+[project.scripts]
+bulk-intel = "pipeline.run_pipeline:cli"
+
+[tool.setuptools.packages.find]
+include = [
+    "config*",
+    "ingestion*",
+    "processing*",
+    "enrichment*",
+    "intelligence*",
+    "output*",
+    "pipeline*",
+    "utils*",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
