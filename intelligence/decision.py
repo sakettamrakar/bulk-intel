@@ -55,7 +55,103 @@ class DecisionEngine:
             recs.count(REVIEW),
             recs.count(SKIP),
         )
+
+        out.attrs["lot_summary"] = self._calculate_lot_summary(out, thresholds)
+
         return out
+
+    # ------------------------------------------------------------------
+    # Lot-level summary logic
+    # ------------------------------------------------------------------
+
+    def _calculate_lot_summary(self, df: pd.DataFrame, thresholds: dict) -> dict:
+        summary = {}
+
+        qty_col = df.get("quantity", pd.Series([1]*len(df)))
+        qty = pd.to_numeric(qty_col, errors="coerce").fillna(1)
+        total_items = float(qty.sum())
+
+        expected_sellable = float(df.get("expected_sellable_qty", pd.Series([0.0]*len(df))).sum())
+        expected_revenue = float(df.get("expected_revenue", pd.Series([0.0]*len(df))).sum())
+        expected_profit = float(df.get("expected_profit", pd.Series([0.0]*len(df))).sum())
+
+        roi_series = pd.to_numeric(df.get("expected_roi_pct", pd.Series([0.0]*len(df))), errors="coerce").dropna()
+        roi_low = float(roi_series.quantile(0.25)) if not roi_series.empty else 0.0
+        roi_median = float(roi_series.quantile(0.50)) if not roi_series.empty else 0.0
+        roi_high = float(roi_series.quantile(0.75)) if not roi_series.empty else 0.0
+
+        cond_norm = df.get("condition_normalized", pd.Series(["unknown"]*len(df)))
+        unknown_qty = float(qty[cond_norm == "unknown"].sum())
+        high_unknown_condition_pct = (unknown_qty / total_items) * 100 if total_items > 0 else 0.0
+
+        unreliable = df.get("unreliable_match", pd.Series([False]*len(df)))
+        unreliable_qty = float(qty[unreliable].sum())
+        low_match_confidence_pct = (unreliable_qty / total_items) * 100 if total_items > 0 else 0.0
+
+        high_price_uncertainty = bool(low_match_confidence_pct > 20.0 or high_unknown_condition_pct > 20.0)
+
+        margin = (expected_profit / expected_revenue) * 100 if expected_revenue > 0 else 0.0
+        min_expected_roi = thresholds.get("min_expected_roi_pct", 25.0)
+        min_expected_margin = thresholds.get("min_expected_margin_pct", 15.0)
+        min_sellable = thresholds.get("min_sellable_count", 10.0)
+
+        roi_pass = roi_median > min_expected_roi
+        margin_pass = margin > min_expected_margin
+        sellable_pass = expected_sellable > min_sellable
+
+        gates = [roi_pass, margin_pass, sellable_pass]
+        passes = sum(gates)
+
+        if all(gates):
+            decision = BUY
+        elif passes >= 2:
+            decision = REVIEW
+        else:
+            decision = SKIP
+
+        defect_qty = float(qty[cond_norm.isin(["used_fair", "defective", "not_tested", "as_is", "salvage"])].sum())
+        defect_prob = (defect_qty / total_items) * 100 if total_items > 0 else 0.0
+
+        known_brands = self.settings.known_brands
+        brand_col = df.get("brand", pd.Series([""]*len(df))).astype(str).str.lower()
+        known_brand_qty = float(qty[brand_col.isin(known_brands)].sum())
+        known_brand_mix = (known_brand_qty / total_items) * 100 if total_items > 0 else 0.0
+
+        reasons = []
+        if roi_median > 40:
+            reasons.append("High ROI")
+        elif roi_median < min_expected_roi:
+            reasons.append("Low ROI")
+
+        if known_brand_mix > 30:
+            reasons.append("Strong brand mix")
+        elif known_brand_mix < 10:
+            reasons.append("Weak brand mix")
+
+        if defect_prob < 10:
+            reasons.append("Low sell-through risk")
+        elif defect_prob > 30:
+            reasons.append("High defect probability")
+
+        if not reasons:
+            reasons.append("Mixed metrics")
+
+        summary.update({
+            "total_items": round(total_items, 2),
+            "expected_sellable": round(expected_sellable, 2),
+            "expected_revenue": round(expected_revenue, 2),
+            "roi_low": round(roi_low, 2),
+            "roi_median": round(roi_median, 2),
+            "roi_high": round(roi_high, 2),
+            "high_unknown_condition_pct": round(high_unknown_condition_pct, 2),
+            "low_match_confidence_pct": round(low_match_confidence_pct, 2),
+            "high_price_uncertainty": high_price_uncertainty,
+            "margin": round(margin, 2),
+            "decision": decision,
+            "decision_reasons": reasons
+        })
+
+        return summary
 
     # ------------------------------------------------------------------
     # Per-row decision logic

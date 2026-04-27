@@ -16,3 +16,17 @@ def test_pipeline_end_to_end(sample_manifest_path, tmp_path):
 
     summary = outputs["summary"].read_text(encoding="utf-8")
     assert "MANIFEST SUMMARY" in summary
+
+    assert "json" in outputs
+    assert outputs["json"].exists()
+    import json
+    json_data = json.loads(outputs["json"].read_text(encoding="utf-8"))
+
+    expected_keys = [
+        "total_items", "expected_sellable", "expected_revenue",
+        "roi_low", "roi_median", "roi_high",
+        "high_unknown_condition_pct", "low_match_confidence_pct",
+        "high_price_uncertainty", "margin", "decision", "decision_reasons"
+    ]
+    for key in expected_keys:
+        assert key in json_data
