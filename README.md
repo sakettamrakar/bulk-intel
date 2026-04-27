@@ -399,6 +399,23 @@ Project conventions live in `CLAUDE.md`.  Highlights:
   test under `tests/`.
 - Stages stay pure: only `ingestion` and `output` perform I/O.
 
+### Audit + roadmap (`docs/`)
+
+- [`docs/audit/2026-04-27-liquidation-framework-audit.md`](docs/audit/2026-04-27-liquidation-framework-audit.md)
+  — six-layer professional-framework audit (input / demand / price / cost /
+  channel / decision), gap analysis, and verdict.
+- [`docs/wbs/`](docs/wbs/) — Work Breakdown Structure of 19 self-contained
+  tasks (T-101..T-306) across three phases. Every task file is pickable by
+  any LLM or contributor and contains: motivation, files to modify,
+  specifications, acceptance criteria, test requirements, documentation
+  requirements, dependencies, and out-of-scope.
+  - [Phase 1](docs/wbs/README.md#phase-1--cost-engine-truth-p0-must-ship-before-any-real-money-is-spent)
+    — cost-engine truth (P0).
+  - [Phase 2](docs/wbs/README.md#phase-2--scale--calibration-p1)
+    — scale & calibration.
+  - [Phase 3](docs/wbs/README.md#phase-3--self-improving-intelligence-p2)
+    — self-improving intelligence.
+
 ---
 
 ## 8. License
