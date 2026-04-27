@@ -184,7 +184,7 @@ bulk-intel/
      weighting).
 6. **Profitability** (`intelligence/profit.py`)
    - Projects `expected_sellable_qty`, `expected_sell_price`,
-     `expected_revenue`, `expected_cost`, `expected_profit`,
+     `expected_revenue`, `inspection_cost`, `expected_cost`, `expected_profit`,
      `expected_margin_pct`, `expected_roi_pct`.
    - Note: operating cost is now `platform_fees[platform][category] + ancillary_revenue_fee_pct`.
    - Uses `real_price` directly (no double-discount on price).
@@ -331,6 +331,7 @@ Open `config/settings.py` to tune behaviour. Common knobs:
 | ---------------------------------------------------- | --------------------------------------------------------------- |
 | `SCORING_WEIGHTS`                                    | Sellability sub-component weights (discount, market_gap, demand, liquidity, brand, price_band) |
 | `RISK_WEIGHTS`                                       | Risk sub-component weights (incl. `condition_risk`)             |
+| `INSPECTION_COST_BY_CONDITION`                       | Inspection cost per unit applied by condition                   |
 | `PROFIT_ASSUMPTIONS["expected_sellable_pct"]`        | Base/cap sell-through. Combined with the per-condition `sellable_factor` via `min(base, condition_factor)` so the more binding constraint wins (no multiplicative double-counting) |
 | `PROFIT_ASSUMPTIONS["expected_sell_price_vs_mrp"]`   | Anchor when no real price available                             |
 | `PROFIT_ASSUMPTIONS["price_realization_factor"]`     | Optional extra haircut on revenue. Defaults to **1.0 (off)** because `real_price` already encodes the realistic-vs-MRP discount. Drop below 1.0 to model clearance/promo erosion |
