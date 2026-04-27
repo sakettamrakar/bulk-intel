@@ -40,6 +40,7 @@ PRIMARY_COLUMNS: tuple[str, ...] = (
     "scenario_roi_median",
     "scenario_roi_high",
     "recommendation",
+    "confidence_gate_applied",
     "reasoning",
 )
 

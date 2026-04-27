@@ -75,11 +75,14 @@ PROFIT_ASSUMPTIONS: Mapping[str, float] = {
 # Decision thresholds (0–100 scoring scale)
 # --------------------------------------------------------------------------
 
+CONFIDENCE_THRESHOLD_FOR_BUY: float = 0.6
+
 DECISION_THRESHOLDS: Mapping[str, float] = {
     "buy_score_min": 60.0,
     "risk_score_max": 60.0,
     "min_expected_margin_pct": 15.0,
     "min_expected_roi_pct": 25.0,
+    "min_buy_match_confidence": CONFIDENCE_THRESHOLD_FOR_BUY,
 }
 
 # --------------------------------------------------------------------------
