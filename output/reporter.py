@@ -58,12 +58,20 @@ class Reporter:
 
         csv_path = self.out_dir / f"{base_name}.csv"
         summary_path = self.out_dir / f"{base_name}_summary.txt"
+        json_path = self.out_dir / f"{base_name}_summary.json"
 
         ranked.to_csv(csv_path, index=False)
         logger.info("Wrote ranked CSV: %s", csv_path)
 
         summary_path.write_text(self._build_summary(ranked), encoding="utf-8")
         logger.info("Wrote summary: %s", summary_path)
+
+        lot_summary = df.attrs.get("lot_summary", {})
+        if lot_summary:
+            import json
+            json_path.write_text(json.dumps(lot_summary, indent=2), encoding="utf-8")
+            logger.info("Wrote JSON summary: %s", json_path)
+            return {"csv": csv_path, "summary": summary_path, "json": json_path}
 
         return {"csv": csv_path, "summary": summary_path}
 
