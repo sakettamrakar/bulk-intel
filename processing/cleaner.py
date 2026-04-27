@@ -154,7 +154,7 @@ class ManifestCleaner:
         def infer(row: pd.Series) -> str:
             current = row["category_lc"]
             if isinstance(current, str) and current and current != "<na>":
-                if current in self.settings.category_demand:
+                if current in getattr(self.settings, "demand_score", {}):
                     return current
             haystack = " ".join(row["keywords"])
             for cat, kws in _CATEGORY_KEYWORDS:

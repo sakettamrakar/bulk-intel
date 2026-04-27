@@ -19,13 +19,17 @@ from typing import Mapping
 
 SCORING_WEIGHTS: Mapping[str, float] = {
     # Higher discount vs MRP => more room to sell profitably.
-    "discount_percentage": 0.35,
+    "discount_percentage": 0.25,
     # Bigger gap between floor and observed market price => stronger margin.
-    "market_gap": 0.30,
+    "market_gap": 0.20,
     # Demand signal proxied via category.
-    "category_demand": 0.20,
+    "demand_score": 0.15,
+    # Category liquidity (how fast things move).
+    "category_liquidity": 0.15,
     # Recognised brands move faster.
-    "brand_strength": 0.15,
+    "brand_score": 0.15,
+    # Higher price items typically have higher absolute margins.
+    "price_band": 0.10,
 }
 
 RISK_WEIGHTS: Mapping[str, float] = {
@@ -52,6 +56,8 @@ PROFIT_ASSUMPTIONS: Mapping[str, float] = {
     # no observed market price is available).  Liquidation-grade goods
     # typically clear at ~40-50% of MRP, not retail price.
     "expected_sell_price_vs_mrp": 0.45,
+    # Price realization factor (0.6-0.8 configurable)
+    "price_realization_factor": 0.75,
     # Operating costs as a fraction of revenue (logistics, returns, platform fees).
     "operating_cost_pct": 0.25,
     # Floor multiplier to absorb hidden costs of acquiring the lot.
@@ -92,7 +98,23 @@ CONDITION_TO_SELL_THROUGH: Mapping[str, Mapping[str, float]] = {
 # Domain heuristics (kept here so non-engineers can tweak)
 # --------------------------------------------------------------------------
 
-CATEGORY_DEMAND_SCORE: Mapping[str, float] = {
+DEMAND_SCORE: Mapping[str, float] = {
+    "electronics": 90.0,
+    "appliances": 75.0,
+    "apparel": 75.0,
+    "home": 70.0,
+    "kitchen": 70.0,
+    "kitchenware": 70.0,
+    "cooking": 70.0,
+    "pots_pans": 70.0,
+    "beauty": 80.0,
+    "toys": 65.0,
+    "books": 40.0,
+    "stationery": 35.0,
+    "unknown": 50.0,
+}
+
+CATEGORY_LIQUIDITY_SCORE: Mapping[str, float] = {
     "electronics": 90.0,
     "appliances": 75.0,
     "apparel": 75.0,
@@ -145,7 +167,8 @@ class Settings:
     risk_weights: Mapping[str, float] = field(default_factory=lambda: dict(RISK_WEIGHTS))
     profit_assumptions: Mapping[str, float] = field(default_factory=lambda: dict(PROFIT_ASSUMPTIONS))
     decision_thresholds: Mapping[str, float] = field(default_factory=lambda: dict(DECISION_THRESHOLDS))
-    category_demand: Mapping[str, float] = field(default_factory=lambda: dict(CATEGORY_DEMAND_SCORE))
+    demand_score: Mapping[str, float] = field(default_factory=lambda: dict(DEMAND_SCORE))
+    category_liquidity: Mapping[str, float] = field(default_factory=lambda: dict(CATEGORY_LIQUIDITY_SCORE))
     category_risk: Mapping[str, float] = field(default_factory=lambda: dict(CATEGORY_RISK_SCORE))
     condition_to_sell_through: Mapping[str, Mapping[str, float]] = field(
         default_factory=lambda: {k: dict(v) for k, v in CONDITION_TO_SELL_THROUGH.items()}

@@ -39,9 +39,9 @@ class ProfitEngine:
         a = self.settings.profit_assumptions
         out = df.copy()
 
-        qty = pd.to_numeric(out["quantity"], errors="coerce").fillna(1)
-        floor = pd.to_numeric(out["floor_price"], errors="coerce")
-        mrp = pd.to_numeric(out["mrp"], errors="coerce")
+        qty = pd.to_numeric(out.get("quantity", pd.Series(1, index=out.index)), errors="coerce").fillna(1)
+        floor = pd.to_numeric(out.get("floor_price", pd.Series(0, index=out.index)), errors="coerce")
+        mrp = pd.to_numeric(out.get("mrp", pd.Series(0, index=out.index)), errors="coerce")
 
         # We now expect real_price to be provided by the PricingEngine
         if "real_price" in out:
@@ -51,16 +51,20 @@ class ProfitEngine:
 
         sellable_factor = self._condition_multipliers(out)
 
-        effective_sellable_pct = a["expected_sellable_pct"] * sellable_factor
+        effective_sellable_pct = a.get("expected_sellable_pct", 0.65) * sellable_factor
         sellable_qty = (qty * effective_sellable_pct).round(2)
 
         # No double discounting: real_price is the final expected_sell_price
         expected_sell_price = real_price
 
+        # New robust profit modeling
+        price_realization = a.get("price_realization_factor", 0.75)
+        lot_cost = qty * floor
+
         with np.errstate(invalid="ignore"):
-            expected_revenue = sellable_qty * expected_sell_price
-            acquisition_cost = qty * floor * (1.0 + a["acquisition_overhead_pct"])
-            operating_cost = expected_revenue * a["operating_cost_pct"]
+            expected_revenue = sellable_qty * expected_sell_price * price_realization
+            acquisition_cost = qty * floor * (1.0 + a.get("acquisition_overhead_pct", 0.05))
+            operating_cost = expected_revenue * a.get("operating_cost_pct", 0.25)
             expected_cost = acquisition_cost + operating_cost
             expected_profit = expected_revenue - expected_cost
             margin_pct = np.where(
@@ -71,8 +75,8 @@ class ProfitEngine:
 
         with np.errstate(invalid="ignore", divide="ignore"):
             roi_pct = np.where(
-                expected_cost > 0,
-                (expected_profit / expected_cost) * 100.0,
+                lot_cost > 0,
+                ((expected_revenue - lot_cost) / lot_cost) * 100.0,
                 np.nan,
             )
 

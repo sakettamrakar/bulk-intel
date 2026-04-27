@@ -29,7 +29,14 @@ class ScoringEngine:
         logger.info("Scoring %d rows", len(df))
         out = df.copy()
 
-        out["sellability_score"] = self._sellability(out).round(2)
+        if "real_price" in out:
+            real_price = pd.to_numeric(out["real_price"], errors="coerce")
+        else:
+            mrp = pd.to_numeric(out.get("mrp", pd.Series(0, index=out.index)), errors="coerce")
+            real_price = mrp * self.settings.profit_assumptions.get("expected_sell_price_vs_mrp", 0.45)
+
+        out["price_band"] = self._classify_price_band(real_price)
+        out["sellability_score"] = self._sellability(out, real_price).round(2)
         out["risk_score"] = self._risk(out).round(2)
 
         logger.debug(
@@ -39,27 +46,47 @@ class ScoringEngine:
         )
         return out
 
+    def _classify_price_band(self, real_price: pd.Series) -> pd.Series:
+        return pd.cut(
+            real_price,
+            bins=[-np.inf, 300, 1000, np.inf],
+            labels=["LOW", "MID", "HIGH"]
+        )
+
+    def _price_band_score(self, real_price: pd.Series) -> pd.Series:
+        return pd.cut(
+            real_price,
+            bins=[-np.inf, 300, 1000, np.inf],
+            labels=[40.0, 70.0, 100.0]
+        ).astype(float)
+
     # ------------------------------------------------------------------
     # Sellability
     # ------------------------------------------------------------------
 
-    def _sellability(self, df: pd.DataFrame) -> pd.Series:
+    def _sellability(self, df: pd.DataFrame, real_price: pd.Series) -> pd.Series:
         weights = self.settings.scoring_weights
-        discount = _normalise(df["discount_percentage"], 0, 80)
-        market_gap = _normalise(df["market_gap"], 0, 60)
-        category_demand = (
-            df["category"].str.lower().map(self.settings.category_demand).fillna(50.0)
-        )
-        brand_strength = self._brand_strength(df["brand"])
+
+        discount = _normalise(df.get("discount_percentage", pd.Series(0, index=df.index)), 0, 80)
+        market_gap = _normalise(df.get("market_gap", pd.Series(0, index=df.index)), 0, 60)
+
+        category_col = df.get("category", pd.Series("unknown", index=df.index)).astype("string").str.lower()
+        demand_score = category_col.map(self.settings.demand_score).fillna(50.0)
+        category_liquidity = category_col.map(self.settings.category_liquidity).fillna(50.0)
+
+        brand_score = self._brand_score(df.get("brand", pd.Series([""]*len(df))))
+        price_band_score = self._price_band_score(real_price)
 
         return (
-            discount * weights["discount_percentage"]
-            + market_gap * weights["market_gap"]
-            + category_demand * weights["category_demand"]
-            + brand_strength * weights["brand_strength"]
+            discount * weights.get("discount_percentage", 0.0)
+            + market_gap * weights.get("market_gap", 0.0)
+            + demand_score * weights.get("demand_score", 0.0)
+            + category_liquidity * weights.get("category_liquidity", 0.0)
+            + brand_score * weights.get("brand_score", 0.0)
+            + price_band_score * weights.get("price_band", 0.0)
         )
 
-    def _brand_strength(self, brand: pd.Series) -> pd.Series:
+    def _brand_score(self, brand: pd.Series) -> pd.Series:
         known = self.settings.known_brands
         lc = brand.astype("string").str.lower().fillna("")
         return lc.map(lambda b: 90.0 if b in known else (60.0 if b else 30.0))
@@ -100,9 +127,12 @@ class ScoringEngine:
     @staticmethod
     def _missing_data_penalty(df: pd.DataFrame) -> pd.Series:
         critical = ["mrp", "floor_price", "category", "brand"]
-        missing = df[critical].isna().sum(axis=1)
+        # Use .get to avoid KeyError if columns don't exist
+        existing = [c for c in critical if c in df.columns]
+        missing_existing = df[existing].isna().sum(axis=1) if existing else pd.Series(0, index=df.index)
+        missing_total = missing_existing + (len(critical) - len(existing))
         # 0 missing → 0; all 4 missing → 100
-        return (missing / len(critical)) * 100.0
+        return (missing_total / len(critical)) * 100.0
 
     @staticmethod
     def _low_quantity_penalty(qty: pd.Series) -> pd.Series:
