@@ -50,14 +50,21 @@ RISK_WEIGHTS: Mapping[str, float] = {
 # --------------------------------------------------------------------------
 
 PROFIT_ASSUMPTIONS: Mapping[str, float] = {
-    # Fraction of units we expect to actually sell.
+    # Base/cap sell-through.  Combined with the per-condition
+    # ``sellable_factor`` via ``min(base, condition_factor)`` so the more
+    # binding constraint wins (no multiplicative double-counting).
+    # Even brand-new liquidation inventory rarely clears 100 %; this caps
+    # the optimistic end of the distribution.
     "expected_sellable_pct": 0.65,
     # Fraction of MRP at which we expect average sell-through (anchor when
     # no observed market price is available).  Liquidation-grade goods
     # typically clear at ~40-50% of MRP, not retail price.
     "expected_sell_price_vs_mrp": 0.45,
-    # Price realization factor (0.6-0.8 configurable)
-    "price_realization_factor": 0.75,
+    # Optional extra haircut on revenue to model clearance/promo erosion.
+    # Default 1.0 (off) — the realistic-vs-MRP discount is already encoded
+    # in ``real_price`` from intelligence/pricing.py.  Drop below 1.0 when
+    # modelling end-of-life inventory that has to clear on a deadline.
+    "price_realization_factor": 1.0,
     # Operating costs as a fraction of revenue (logistics, returns, platform fees).
     "operating_cost_pct": 0.25,
     # Floor multiplier to absorb hidden costs of acquiring the lot.
@@ -86,12 +93,16 @@ DECISION_THRESHOLDS: Mapping[str, float] = {
 # --------------------------------------------------------------------------
 
 CONDITION_TO_SELL_THROUGH: Mapping[str, Mapping[str, float]] = {
-    "new":       {"sellable_factor": 1.00, "risk_score": 10.0},
-    "like_new":  {"sellable_factor": 0.90, "risk_score": 25.0},
-    "used_good": {"sellable_factor": 0.75, "risk_score": 40.0},
-    "used_fair": {"sellable_factor": 0.60, "risk_score": 60.0},
-    "defective": {"sellable_factor": 0.20, "risk_score": 90.0},
-    "unknown":   {"sellable_factor": 0.50, "risk_score": 60.0},
+    "new":         {"sellable_factor": 1.00, "risk_score": 10.0},
+    "like_new":    {"sellable_factor": 0.90, "risk_score": 25.0},
+    "used_good":   {"sellable_factor": 0.75, "risk_score": 40.0},
+    "used_fair":   {"sellable_factor": 0.60, "risk_score": 60.0},
+    # "Not Tested" Amazon-return inventory is mostly functional after
+    # cleaning/inspection (buyer's-remorse returns dominate over defects).
+    # Sits between used_good and used_fair; risk reflects inspection cost.
+    "not_tested":  {"sellable_factor": 0.65, "risk_score": 60.0},
+    "defective":   {"sellable_factor": 0.20, "risk_score": 90.0},
+    "unknown":     {"sellable_factor": 0.50, "risk_score": 60.0},
 }
 
 # --------------------------------------------------------------------------

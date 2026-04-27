@@ -171,13 +171,18 @@ def clean_manifest(df: pd.DataFrame, settings: Settings | None = None) -> pd.Dat
     return ManifestCleaner(settings or get_settings()).clean(df)
 
 
-# Condition string → canonical bucket used by ``CONDITION_FACTORS``.
+# Condition string → canonical bucket used by ``CONDITION_TO_SELL_THROUGH``.
+# Order matters: more specific patterns must come before more general ones.
+# In particular, ``not\s*tested`` is checked before the ``defective`` pattern
+# because untested-but-likely-functional inventory has very different
+# economics from confirmed-defective inventory.
 _CONDITION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\b(brand\s*new|sealed|new\s*in\s*box|nib|new)\b", re.I), "new"),
     (re.compile(r"\b(like\s*new|open\s*box|customer\s*return)\b", re.I), "like_new"),
     (re.compile(r"\b(used\s*good|refurb(ished)?|good)\b", re.I), "used_good"),
     (re.compile(r"\b(used|used\s*fair|pre[-\s]?owned|fair)\b", re.I), "used_fair"),
-    (re.compile(r"\b(defective|salvage|as[-\s]?is|asis|not\s*tested)\b", re.I), "defective"),
+    (re.compile(r"\bnot\s*tested\b", re.I), "not_tested"),
+    (re.compile(r"\b(defective|salvage|as[-\s]?is|asis)\b", re.I), "defective"),
 )
 
 

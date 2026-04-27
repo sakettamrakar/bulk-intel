@@ -23,6 +23,7 @@ from ingestion.loader import ManifestLoader
 from intelligence.decision import DecisionEngine
 from intelligence.pricing import PricingEngine
 from intelligence.profit import ProfitEngine
+from intelligence.scenario import compute_scenarios
 from intelligence.scoring import ScoringEngine
 from output.reporter import Reporter
 from processing.cleaner import ManifestCleaner
@@ -64,6 +65,7 @@ class Pipeline:
         df = pricing.compute(df)
         df = scoring.compute(df)
         df = profit.compute(df)
+        df = compute_scenarios(df, self.settings)
         df = decision.decide(df)
 
         outputs = reporter.write(df, base_name=Path(input_path).stem + "_report")
@@ -77,6 +79,7 @@ class Pipeline:
         df = PricingEngine().compute(df)
         df = ScoringEngine(self.settings).compute(df)
         df = ProfitEngine(self.settings).compute(df)
+        df = compute_scenarios(df, self.settings)
         df = DecisionEngine(self.settings).decide(df)
         return df
 

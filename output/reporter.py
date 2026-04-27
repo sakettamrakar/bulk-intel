@@ -36,6 +36,9 @@ PRIMARY_COLUMNS: tuple[str, ...] = (
     "expected_profit",
     "expected_margin_pct",
     "expected_roi_pct",
+    "scenario_roi_low",
+    "scenario_roi_median",
+    "scenario_roi_high",
     "recommendation",
     "reasoning",
 )

@@ -163,27 +163,40 @@ class ManifestLoader:
 
     @staticmethod
     def _retain_raw_category(df: pd.DataFrame) -> pd.DataFrame:
-        """Retain hierarchical Category L1..Ln columns and map them to raw_category.
-        We stop collapsing categories early.
+        """Combine hierarchical ``Category L1..Ln`` columns into ``raw_category``.
+
+        We deliberately do *not* collapse to a single normalized label here —
+        that's the cleaner's job.  Instead we keep the full ``L1 > L2 > L3``
+        breadcrumb in ``raw_category`` so downstream stages and reports can
+        refer back to the source taxonomy.
+
+        After combining, the per-level ``category_l<n>`` columns are dropped
+        to keep the downstream DataFrame tidy (they're fully redundant with
+        ``raw_category``).
         """
         level_cols = sorted(
             (c for c in df.columns if re.fullmatch(r"category_l\d+", c) or c == "category"),
         )
+        level_only = [c for c in level_cols if c != "category"]
         if not level_cols:
             return df
 
         df = df.copy()
 
-        # Combine existing category columns into raw_category
         def combine_cats(row):
             cats = [str(row[c]).strip() for c in level_cols if pd.notna(row[c]) and str(row[c]).strip()]
             return " > ".join(cats) if cats else pd.NA
 
         df["raw_category"] = df.apply(combine_cats, axis=1)
 
-        # we will extract a category column for pipeline dependencies but leave raw_category
+        # ``category`` is a working alias the cleaner will overwrite with the
+        # normalized label.  Seed it from ``raw_category`` if the source had
+        # no flat category column.
         if "category" not in df.columns:
             df["category"] = df["raw_category"]
+
+        if level_only:
+            df = df.drop(columns=level_only)
 
         return df
 
