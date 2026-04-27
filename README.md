@@ -186,10 +186,15 @@ bulk-intel/
    - Projects `expected_sellable_qty`, `expected_sell_price`,
      `expected_revenue`, `expected_cost`, `expected_profit`,
      `expected_margin_pct`, `expected_roi_pct`.
-   - Uses `real_price` directly (no double-discount) and applies
-     `price_realization_factor` plus the condition's `sellable_factor`
-     to the realised quantity.  ROI = `(revenue − lot_cost) / lot_cost`
-     where `lot_cost = quantity × floor_price`.
+   - Uses `real_price` directly (no double-discount on price).
+   - Combines the base `expected_sellable_pct` with the condition's
+     `sellable_factor` via **`min(base, condition_factor)`**, not
+     multiplication, so the more binding constraint wins and we don't
+     stack the same conservatism twice.
+   - `price_realization_factor` defaults to `1.0` (off); the realistic
+     discount vs MRP is already baked into `real_price`.
+   - ROI = `(revenue − lot_cost) / lot_cost` where
+     `lot_cost = quantity × floor_price`.
 7. **Scenario stress test** (`intelligence/scenario.py`)
    - Adds `scenario_roi_low`, `scenario_roi_median`, `scenario_roi_high`
      per row.  Default scenarios:
@@ -325,9 +330,9 @@ Open `config/settings.py` to tune behaviour. Common knobs:
 | ---------------------------------------------------- | --------------------------------------------------------------- |
 | `SCORING_WEIGHTS`                                    | Sellability sub-component weights (discount, market_gap, demand, liquidity, brand, price_band) |
 | `RISK_WEIGHTS`                                       | Risk sub-component weights (incl. `condition_risk`)             |
-| `PROFIT_ASSUMPTIONS["expected_sellable_pct"]`        | Base sell-through rate (multiplied by per-condition factor)     |
+| `PROFIT_ASSUMPTIONS["expected_sellable_pct"]`        | Base/cap sell-through. Combined with the per-condition `sellable_factor` via `min(base, condition_factor)` so the more binding constraint wins (no multiplicative double-counting) |
 | `PROFIT_ASSUMPTIONS["expected_sell_price_vs_mrp"]`   | Anchor when no real price available                             |
-| `PROFIT_ASSUMPTIONS["price_realization_factor"]`     | Discount on revenue to model market-clearing pressure           |
+| `PROFIT_ASSUMPTIONS["price_realization_factor"]`     | Optional extra haircut on revenue. Defaults to **1.0 (off)** because `real_price` already encodes the realistic-vs-MRP discount. Drop below 1.0 to model clearance/promo erosion |
 | `PROFIT_ASSUMPTIONS["operating_cost_pct"]`           | Logistics + fees as % of revenue                                |
 | `PROFIT_ASSUMPTIONS["acquisition_overhead_pct"]`     | Hidden costs of acquiring the lot                               |
 | `DECISION_THRESHOLDS["buy_score_min"]`               | Min sellability score for BUY                                   |

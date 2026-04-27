@@ -50,14 +50,21 @@ RISK_WEIGHTS: Mapping[str, float] = {
 # --------------------------------------------------------------------------
 
 PROFIT_ASSUMPTIONS: Mapping[str, float] = {
-    # Fraction of units we expect to actually sell.
+    # Base/cap sell-through.  Combined with the per-condition
+    # ``sellable_factor`` via ``min(base, condition_factor)`` so the more
+    # binding constraint wins (no multiplicative double-counting).
+    # Even brand-new liquidation inventory rarely clears 100 %; this caps
+    # the optimistic end of the distribution.
     "expected_sellable_pct": 0.65,
     # Fraction of MRP at which we expect average sell-through (anchor when
     # no observed market price is available).  Liquidation-grade goods
     # typically clear at ~40-50% of MRP, not retail price.
     "expected_sell_price_vs_mrp": 0.45,
-    # Price realization factor (0.6-0.8 configurable)
-    "price_realization_factor": 0.75,
+    # Optional extra haircut on revenue to model clearance/promo erosion.
+    # Default 1.0 (off) — the realistic-vs-MRP discount is already encoded
+    # in ``real_price`` from intelligence/pricing.py.  Drop below 1.0 when
+    # modelling end-of-life inventory that has to clear on a deadline.
+    "price_realization_factor": 1.0,
     # Operating costs as a fraction of revenue (logistics, returns, platform fees).
     "operating_cost_pct": 0.25,
     # Floor multiplier to absorb hidden costs of acquiring the lot.

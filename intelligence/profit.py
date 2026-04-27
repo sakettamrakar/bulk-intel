@@ -27,6 +27,22 @@ class ProfitEngine:
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         """Return a copy of ``df`` with profitability columns added.
 
+        Sell-through semantics
+        ----------------------
+        ``expected_sellable_pct`` is the **base/cap** sell-through (an upper
+        bound on how much of any lot we expect to clear, even for brand-new
+        goods).  Each condition's ``sellable_factor`` is the **ceiling
+        imposed by that condition**.  We combine them with ``min`` rather
+        than multiplication so we don't double-count the same conservatism:
+
+            effective = min(expected_sellable_pct, condition.sellable_factor)
+
+        That gives a clean reading:
+
+        * ``new``         (factor 1.00) — base 0.65 binds → 65 % clears
+        * ``not_tested``  (factor 0.65) — both equal      → 65 % clears
+        * ``defective``   (factor 0.20) — condition binds → 20 % clears
+
         Columns:
             - ``expected_sellable_qty``
             - ``expected_sell_price``
@@ -34,6 +50,7 @@ class ProfitEngine:
             - ``expected_cost``
             - ``expected_profit``
             - ``expected_margin_pct``
+            - ``expected_roi_pct``
         """
         logger.info("Computing profitability for %d rows", len(df))
         a = self.settings.profit_assumptions
@@ -51,14 +68,19 @@ class ProfitEngine:
 
         sellable_factor = self._condition_multipliers(out)
 
-        effective_sellable_pct = a.get("expected_sellable_pct", 0.65) * sellable_factor
+        # min(base, condition_factor) — see docstring for rationale.
+        base_sellable_pct = a.get("expected_sellable_pct", 0.65)
+        effective_sellable_pct = np.minimum(base_sellable_pct, sellable_factor)
         sellable_qty = (qty * effective_sellable_pct).round(2)
 
         # No double discounting: real_price is the final expected_sell_price
         expected_sell_price = real_price
 
-        # New robust profit modeling
-        price_realization = a.get("price_realization_factor", 0.75)
+        # ``price_realization_factor`` defaults to 1.0 (off): the haircut
+        # vs MRP is already encoded in ``real_price`` from pricing.py.
+        # Operators who want to model clearance/promo erosion separately
+        # can drop this below 1.0.
+        price_realization = a.get("price_realization_factor", 1.0)
         lot_cost = qty * floor
 
         with np.errstate(invalid="ignore"):
@@ -99,7 +121,11 @@ class ProfitEngine:
     def _condition_multipliers(
         self, df: pd.DataFrame
     ) -> pd.Series:
-        """Return ``sellable_factor`` per row. Condition affects only sellable factor."""
+        """Return per-row ``sellable_factor`` (ceiling imposed by condition).
+
+        Combined with the base ``expected_sellable_pct`` via ``min`` in
+        :meth:`compute` to avoid double-counting.
+        """
         factors = self.settings.condition_to_sell_through
         if "condition_normalized" in df.columns:
             col = df["condition_normalized"].fillna("unknown")
