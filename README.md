@@ -340,6 +340,7 @@ Open `config/settings.py` to tune behaviour. Common knobs:
 | `DECISION_THRESHOLDS["risk_score_max"]`              | Max risk score for BUY/REVIEW                                   |
 | `DECISION_THRESHOLDS["min_expected_margin_pct"]`     | Min margin-on-revenue for BUY                                   |
 | `DECISION_THRESHOLDS["min_expected_roi_pct"]`        | Min ROI-on-cost for BUY                                         |
+| `DECISION_THRESHOLDS["min_buy_match_confidence"]`    | Min match confidence for BUY (missing column defaults to 1.0)   |
 | `CONDITION_TO_SELL_THROUGH`                          | Per-condition `(sellable_factor, risk_score)` map               |
 | `DEMAND_SCORE` / `CATEGORY_LIQUIDITY_SCORE` / `CATEGORY_RISK_SCORE` | Per-category demand / liquidity / risk priors        |
 | `KNOWN_BRANDS`                                       | Brand recognition list                                          |

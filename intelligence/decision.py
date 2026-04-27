@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from config.settings import Settings, get_settings
+from intelligence.scoring import apply_confidence_gate
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -55,6 +56,8 @@ class DecisionEngine:
             recs.count(REVIEW),
             recs.count(SKIP),
         )
+
+        out = apply_confidence_gate(out, self.settings)
 
         out.attrs["lot_summary"] = self._calculate_lot_summary(out, thresholds)
 
