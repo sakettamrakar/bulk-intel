@@ -109,8 +109,14 @@ class DecisionEngine:
         else:
             decision = SKIP
 
-        defect_qty = float(qty[cond_norm.isin(["used_fair", "defective", "not_tested", "as_is", "salvage"])].sum())
+        # "Defective" buckets are confirmed-bad inventory; ``not_tested`` is
+        # uninspected (mostly functional after testing) and tracked separately
+        # so the operator can distinguish "needs inspection" from "broken".
+        defect_qty = float(qty[cond_norm.isin(["defective", "salvage"])].sum())
         defect_prob = (defect_qty / total_items) * 100 if total_items > 0 else 0.0
+
+        untested_qty = float(qty[cond_norm.isin(["not_tested", "as_is"])].sum())
+        untested_pct = (untested_qty / total_items) * 100 if total_items > 0 else 0.0
 
         known_brands = self.settings.known_brands
         brand_col = df.get("brand", pd.Series([""]*len(df))).astype(str).str.lower()
@@ -128,10 +134,13 @@ class DecisionEngine:
         elif known_brand_mix < 10:
             reasons.append("Weak brand mix")
 
-        if defect_prob < 10:
-            reasons.append("Low sell-through risk")
-        elif defect_prob > 30:
+        if defect_prob > 30:
             reasons.append("High defect probability")
+        elif defect_prob < 10 and untested_pct < 30:
+            reasons.append("Low sell-through risk")
+
+        if untested_pct > 50:
+            reasons.append("Lot is largely untested — inspection cost dominates")
 
         if not reasons:
             reasons.append("Mixed metrics")
@@ -144,6 +153,8 @@ class DecisionEngine:
             "roi_median": round(roi_median, 2),
             "roi_high": round(roi_high, 2),
             "high_unknown_condition_pct": round(high_unknown_condition_pct, 2),
+            "untested_pct": round(untested_pct, 2),
+            "defect_pct": round(defect_prob, 2),
             "low_match_confidence_pct": round(low_match_confidence_pct, 2),
             "high_price_uncertainty": high_price_uncertainty,
             "margin": round(margin, 2),

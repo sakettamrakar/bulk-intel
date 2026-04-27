@@ -86,12 +86,16 @@ DECISION_THRESHOLDS: Mapping[str, float] = {
 # --------------------------------------------------------------------------
 
 CONDITION_TO_SELL_THROUGH: Mapping[str, Mapping[str, float]] = {
-    "new":       {"sellable_factor": 1.00, "risk_score": 10.0},
-    "like_new":  {"sellable_factor": 0.90, "risk_score": 25.0},
-    "used_good": {"sellable_factor": 0.75, "risk_score": 40.0},
-    "used_fair": {"sellable_factor": 0.60, "risk_score": 60.0},
-    "defective": {"sellable_factor": 0.20, "risk_score": 90.0},
-    "unknown":   {"sellable_factor": 0.50, "risk_score": 60.0},
+    "new":         {"sellable_factor": 1.00, "risk_score": 10.0},
+    "like_new":    {"sellable_factor": 0.90, "risk_score": 25.0},
+    "used_good":   {"sellable_factor": 0.75, "risk_score": 40.0},
+    "used_fair":   {"sellable_factor": 0.60, "risk_score": 60.0},
+    # "Not Tested" Amazon-return inventory is mostly functional after
+    # cleaning/inspection (buyer's-remorse returns dominate over defects).
+    # Sits between used_good and used_fair; risk reflects inspection cost.
+    "not_tested":  {"sellable_factor": 0.65, "risk_score": 60.0},
+    "defective":   {"sellable_factor": 0.20, "risk_score": 90.0},
+    "unknown":     {"sellable_factor": 0.50, "risk_score": 60.0},
 }
 
 # --------------------------------------------------------------------------

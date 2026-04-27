@@ -84,21 +84,33 @@ class FuzzyCatalogPriceProvider:
 
 @dataclass(frozen=True)
 class LookupTablePriceProvider:
-    """Resolve prices from an in-memory ``{sku: (market, wholesale)}`` table.
+    """Resolve prices from an in-memory ``{sku: (...)}`` table.
+
+    Each value may be a 2-tuple ``(market, wholesale)`` (confidence
+    defaults to 1.0) or a 3-tuple ``(market, wholesale, confidence)``
+    when the caller wants to encode an explicit match confidence.
 
     Useful for manual overrides and unit tests, and serves as the seam
     a future external API would replace.
     """
 
-    table: Mapping[str, tuple[float | None, float | None]]
+    table: Mapping[
+        str,
+        tuple[float | None, float | None]
+        | tuple[float | None, float | None, float],
+    ]
     name: str = "lookup_table"
 
     def lookup(self, row: pd.Series) -> tuple[float | None, float | None, float]:
         sku = row.get("sku")
         if not isinstance(sku, str):
             return (None, None, 0.0)
-        res = self.table.get(sku, (None, None))
-        return (res[0], res[1], 1.0)
+        entry = self.table.get(sku)
+        if entry is None:
+            return (None, None, 0.0)
+        if len(entry) == 3:
+            return (entry[0], entry[1], float(entry[2]))
+        return (entry[0], entry[1], 1.0)
 
 
 @dataclass(frozen=True)

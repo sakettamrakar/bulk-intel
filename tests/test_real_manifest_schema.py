@@ -40,7 +40,9 @@ def test_loader_retains_hierarchical_categories(tmp_path):
 def test_cleaner_normalizes_condition(tmp_path):
     df = load_manifest(_write_b4t_csv(tmp_path))
     df = clean_manifest(df)
-    assert df.loc[0, "condition_normalized"] == "defective"
+    # "Not Tested" is its own bucket — distinct from "Defective"/"As-Is" —
+    # because untested Amazon returns are mostly functional after inspection.
+    assert df.loc[0, "condition_normalized"] == "not_tested"
     assert df.loc[1, "condition_normalized"] == "defective"
     assert df.loc[2, "condition_normalized"] == "new"
 
