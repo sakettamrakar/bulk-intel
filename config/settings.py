@@ -79,16 +79,13 @@ DECISION_THRESHOLDS: Mapping[str, float] = {
 #   - risk_score        : 0–100 risk contribution from condition alone.
 # --------------------------------------------------------------------------
 
-CONDITION_FACTORS: Mapping[str, Mapping[str, float]] = {
-    "new":          {"sell_price_factor": 1.00, "sellable_factor": 1.00, "risk_score": 10.0},
-    "sealed":       {"sell_price_factor": 1.00, "sellable_factor": 1.00, "risk_score": 10.0},
-    "open_box":     {"sell_price_factor": 0.85, "sellable_factor": 0.90, "risk_score": 35.0},
-    "refurbished":  {"sell_price_factor": 0.75, "sellable_factor": 0.85, "risk_score": 50.0},
-    "used":         {"sell_price_factor": 0.60, "sellable_factor": 0.75, "risk_score": 55.0},
-    "as_is":        {"sell_price_factor": 0.55, "sellable_factor": 0.60, "risk_score": 70.0},
-    "not_tested":   {"sell_price_factor": 0.65, "sellable_factor": 0.70, "risk_score": 60.0},
-    "salvage":      {"sell_price_factor": 0.35, "sellable_factor": 0.40, "risk_score": 90.0},
-    "unknown":      {"sell_price_factor": 0.65, "sellable_factor": 0.70, "risk_score": 60.0},
+CONDITION_TO_SELL_THROUGH: Mapping[str, Mapping[str, float]] = {
+    "new":       {"sellable_factor": 1.00, "risk_score": 10.0},
+    "like_new":  {"sellable_factor": 0.90, "risk_score": 25.0},
+    "used_good": {"sellable_factor": 0.75, "risk_score": 40.0},
+    "used_fair": {"sellable_factor": 0.60, "risk_score": 60.0},
+    "defective": {"sellable_factor": 0.20, "risk_score": 90.0},
+    "unknown":   {"sellable_factor": 0.50, "risk_score": 60.0},
 }
 
 # --------------------------------------------------------------------------
@@ -150,8 +147,8 @@ class Settings:
     decision_thresholds: Mapping[str, float] = field(default_factory=lambda: dict(DECISION_THRESHOLDS))
     category_demand: Mapping[str, float] = field(default_factory=lambda: dict(CATEGORY_DEMAND_SCORE))
     category_risk: Mapping[str, float] = field(default_factory=lambda: dict(CATEGORY_RISK_SCORE))
-    condition_factors: Mapping[str, Mapping[str, float]] = field(
-        default_factory=lambda: {k: dict(v) for k, v in CONDITION_FACTORS.items()}
+    condition_to_sell_through: Mapping[str, Mapping[str, float]] = field(
+        default_factory=lambda: {k: dict(v) for k, v in CONDITION_TO_SELL_THROUGH.items()}
     )
     known_brands: frozenset[str] = field(default_factory=lambda: frozenset(KNOWN_BRANDS))
 

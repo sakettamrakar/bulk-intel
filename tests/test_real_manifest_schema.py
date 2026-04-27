@@ -30,20 +30,18 @@ def test_loader_aliases_b4t_columns(tmp_path):
     assert df["floor_price"].tolist() == [800.0, 500.0, 300.0]
 
 
-def test_loader_collapses_hierarchical_categories(tmp_path):
+def test_loader_retains_hierarchical_categories(tmp_path):
     df = load_manifest(_write_b4t_csv(tmp_path))
-    # Deepest non-placeholder level wins; "Others" is treated as placeholder.
-    assert df.loc[0, "category"] == "Mixer"
-    assert df.loc[1, "category"] == "Cooking items"
-    # When only placeholder values exist, fall back to the deepest of those.
-    assert df.loc[2, "category"] == "Others"
+    assert df.loc[0, "raw_category"] == "Others > Kitchenware > Mixer"
+    assert df.loc[1, "raw_category"] == "Others > Cooking items"
+    assert df.loc[2, "raw_category"] == "Others"
 
 
 def test_cleaner_normalizes_condition(tmp_path):
     df = load_manifest(_write_b4t_csv(tmp_path))
     df = clean_manifest(df)
-    assert df.loc[0, "condition_normalized"] == "not_tested"
-    assert df.loc[1, "condition_normalized"] == "as_is"
+    assert df.loc[0, "condition_normalized"] == "defective"
+    assert df.loc[1, "condition_normalized"] == "defective"
     assert df.loc[2, "condition_normalized"] == "new"
 
 

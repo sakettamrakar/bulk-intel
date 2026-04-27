@@ -77,7 +77,8 @@ class ManifestCleaner:
         out["product_name_clean"] = out["product_name"].map(self._clean_name)
         out["keywords"] = out["product_name_clean"].map(self._extract_keywords)
         out["brand"] = self._fill_brand(out)
-        out["category"] = self._fill_category(out)
+        out["normalized_category"] = self._fill_category(out)
+        out["category"] = out["normalized_category"]  # keep category as alias for compatibility if needed
         out["condition_normalized"] = out["condition"].map(_normalize_condition)
 
         # Standardise numeric fields: clip negatives to NaN, ensure floats.
@@ -92,7 +93,7 @@ class ManifestCleaner:
         logger.info(
             "Cleaning complete. Brands resolved=%d, categories resolved=%d, conditions normalized=%d",
             out["brand"].notna().sum(),
-            (out["category"].fillna("unknown") != "unknown").sum(),
+            (out["normalized_category"].fillna("unknown") != "unknown").sum(),
             (out["condition_normalized"].fillna("unknown") != "unknown").sum(),
         )
         return out
@@ -172,14 +173,11 @@ def clean_manifest(df: pd.DataFrame, settings: Settings | None = None) -> pd.Dat
 
 # Condition string → canonical bucket used by ``CONDITION_FACTORS``.
 _CONDITION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"\b(brand\s*new|sealed|new\s*in\s*box|nib)\b", re.I), "sealed"),
-    (re.compile(r"\bnew\b", re.I), "new"),
-    (re.compile(r"\b(open\s*box|customer\s*return)\b", re.I), "open_box"),
-    (re.compile(r"\brefurb(ished)?\b", re.I), "refurbished"),
-    (re.compile(r"\b(used|pre[-\s]?owned)\b", re.I), "used"),
-    (re.compile(r"\b(as[-\s]?is|asis)\b", re.I), "as_is"),
-    (re.compile(r"\bnot\s*tested\b", re.I), "not_tested"),
-    (re.compile(r"\bsalvage\b", re.I), "salvage"),
+    (re.compile(r"\b(brand\s*new|sealed|new\s*in\s*box|nib|new)\b", re.I), "new"),
+    (re.compile(r"\b(like\s*new|open\s*box|customer\s*return)\b", re.I), "like_new"),
+    (re.compile(r"\b(used\s*good|refurb(ished)?|good)\b", re.I), "used_good"),
+    (re.compile(r"\b(used|used\s*fair|pre[-\s]?owned|fair)\b", re.I), "used_fair"),
+    (re.compile(r"\b(defective|salvage|as[-\s]?is|asis|not\s*tested)\b", re.I), "defective"),
 )
 
 

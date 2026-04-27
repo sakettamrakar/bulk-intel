@@ -31,24 +31,24 @@ def _row(**overrides) -> dict:
 
 def test_profit_uses_condition_factors():
     df = pd.DataFrame(
-        [_row(condition_normalized="new"), _row(sku="y", condition_normalized="not_tested")]
+        [_row(condition_normalized="new", real_price=800.0), _row(sku="y", condition_normalized="defective", real_price=800.0)]
     )
     out = compute_profitability(df)
     new_price = out.loc[0, "expected_sell_price"]
     nt_price = out.loc[1, "expected_sell_price"]
-    assert nt_price < new_price, "Not-tested items should price below new"
+    assert nt_price == new_price, "Condition should not double-discount price"
 
     new_qty = out.loc[0, "expected_sellable_qty"]
     nt_qty = out.loc[1, "expected_sellable_qty"]
-    assert nt_qty < new_qty, "Not-tested items should have lower sell-through"
+    assert nt_qty < new_qty, "Defective items should have lower sell-through"
 
 
 def test_risk_score_increases_with_worse_condition():
     df = pd.DataFrame(
         [
             _row(condition_normalized="new"),
-            _row(sku="y", condition_normalized="not_tested"),
-            _row(sku="z", condition_normalized="salvage"),
+            _row(sku="y", condition_normalized="used_good"),
+            _row(sku="z", condition_normalized="defective"),
         ]
     )
     scored = compute_scores(df)
