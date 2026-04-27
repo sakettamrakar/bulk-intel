@@ -72,6 +72,19 @@ PROFIT_ASSUMPTIONS: Mapping[str, float] = {
 }
 
 # --------------------------------------------------------------------------
+# Inspection cost
+# --------------------------------------------------------------------------
+
+# ₹/unit cost of inspecting and testing a unit before listing.
+# Only applied to conditions where the platform listing requires a tested
+# product. Values are rough operator estimates; tune per category and labour cost.
+INSPECTION_COST_BY_CONDITION: Mapping[str, float] = {
+    "tested": 0.0,
+    "not_tested": 50.0,
+    "unknown": 50.0,
+}
+
+# --------------------------------------------------------------------------
 # Decision thresholds (0–100 scoring scale)
 # --------------------------------------------------------------------------
 
@@ -185,6 +198,7 @@ class Settings:
         default_factory=lambda: {k: dict(v) for k, v in CONDITION_TO_SELL_THROUGH.items()}
     )
     known_brands: frozenset[str] = field(default_factory=lambda: frozenset(KNOWN_BRANDS))
+    inspection_cost_by_condition: Mapping[str, float] = field(default_factory=lambda: dict(INSPECTION_COST_BY_CONDITION))
 
 
 def get_settings() -> Settings:

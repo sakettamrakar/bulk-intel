@@ -47,6 +47,7 @@ class ProfitEngine:
             - ``expected_sellable_qty``
             - ``expected_sell_price``
             - ``expected_revenue``
+            - ``inspection_cost``
             - ``expected_cost``
             - ``expected_profit``
             - ``expected_margin_pct``
@@ -87,7 +88,8 @@ class ProfitEngine:
             expected_revenue = sellable_qty * expected_sell_price * price_realization
             acquisition_cost = qty * floor * (1.0 + a.get("acquisition_overhead_pct", 0.05))
             operating_cost = expected_revenue * a.get("operating_cost_pct", 0.25)
-            expected_cost = acquisition_cost + operating_cost
+            inspection_cost = self._resolve_inspection_cost(out, qty)
+            expected_cost = acquisition_cost + operating_cost + inspection_cost
             expected_profit = expected_revenue - expected_cost
             margin_pct = np.where(
                 expected_revenue > 0,
@@ -105,6 +107,7 @@ class ProfitEngine:
         out["expected_sellable_qty"] = sellable_qty
         out["expected_sell_price"] = expected_sell_price.round(2)
         out["expected_revenue"] = expected_revenue.round(2)
+        out["inspection_cost"] = inspection_cost.round(2)
         out["expected_cost"] = expected_cost.round(2)
         out["expected_profit"] = expected_profit.round(2)
         out["expected_margin_pct"] = pd.Series(margin_pct, index=out.index).round(2)
@@ -117,6 +120,16 @@ class ProfitEngine:
         )
         return out
 
+
+    def _resolve_inspection_cost(self, df: pd.DataFrame, qty: pd.Series) -> pd.Series:
+        """Per-row inspection cost = qty × per-condition ₹/unit."""
+        table = self.settings.inspection_cost_by_condition
+        if "condition_normalized" in df.columns:
+            col = df["condition_normalized"].fillna("unknown")
+        else:
+            col = pd.Series(["unknown"] * len(df), index=df.index)
+        per_unit = col.map(lambda c: table.get(c, table["unknown"])).astype(float)
+        return qty * per_unit
 
     def _condition_multipliers(
         self, df: pd.DataFrame
