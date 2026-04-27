@@ -20,7 +20,10 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class ProfitEngine:
-    """Compute expected revenue and profit assuming pipeline defaults."""
+    """Compute expected revenue and profit assuming pipeline defaults.
+
+    Factors in configured costs (operating, transport, acquisition).
+    """
 
     settings: Settings
 
@@ -47,6 +50,7 @@ class ProfitEngine:
             - ``expected_sellable_qty``
             - ``expected_sell_price``
             - ``expected_revenue``
+            - ``transport_cost``
             - ``expected_cost``
             - ``expected_profit``
             - ``expected_margin_pct``
@@ -83,11 +87,13 @@ class ProfitEngine:
         price_realization = a.get("price_realization_factor", 1.0)
         lot_cost = qty * floor
 
+        transport_cost = self._resolve_transport_cost(out, qty)
+
         with np.errstate(invalid="ignore"):
             expected_revenue = sellable_qty * expected_sell_price * price_realization
             acquisition_cost = qty * floor * (1.0 + a.get("acquisition_overhead_pct", 0.05))
             operating_cost = expected_revenue * a.get("operating_cost_pct", 0.25)
-            expected_cost = acquisition_cost + operating_cost
+            expected_cost = acquisition_cost + operating_cost + transport_cost
             expected_profit = expected_revenue - expected_cost
             margin_pct = np.where(
                 expected_revenue > 0,
@@ -102,6 +108,7 @@ class ProfitEngine:
                 np.nan,
             )
 
+        out["transport_cost"] = transport_cost.round(2)
         out["expected_sellable_qty"] = sellable_qty
         out["expected_sell_price"] = expected_sell_price.round(2)
         out["expected_revenue"] = expected_revenue.round(2)
@@ -133,6 +140,20 @@ class ProfitEngine:
             col = pd.Series(["unknown"] * len(df), index=df.index)
         sellable = col.map(lambda c: factors.get(c, factors["unknown"])["sellable_factor"]).astype(float)
         return sellable
+
+    def _resolve_transport_cost(self, df: pd.DataFrame, qty: pd.Series) -> pd.Series:
+        tier_map = self.settings.category_weight_tier
+        cost_map = self.settings.transport_cost_per_unit
+        default_tier = self.settings.default_weight_tier
+        if "category" in df.columns:
+            cat = df["category"].astype("string").str.lower().fillna("unknown")
+        elif "normalized_category" in df.columns:
+            cat = df["normalized_category"].astype("string").str.lower().fillna("unknown")
+        else:
+            cat = pd.Series(["unknown"] * len(df), index=df.index)
+        tier = cat.map(lambda c: tier_map.get(c, default_tier))
+        per_unit = tier.map(lambda t: cost_map.get(t, cost_map[default_tier])).astype(float)
+        return qty * per_unit
 
 
 def compute_profitability(

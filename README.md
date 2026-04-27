@@ -184,8 +184,8 @@ bulk-intel/
      weighting).
 6. **Profitability** (`intelligence/profit.py`)
    - Projects `expected_sellable_qty`, `expected_sell_price`,
-     `expected_revenue`, `expected_cost`, `expected_profit`,
-     `expected_margin_pct`, `expected_roi_pct`.
+     `expected_revenue`, `transport_cost`, `expected_cost`,
+     `expected_profit`, `expected_margin_pct`, `expected_roi_pct`.
    - Uses `real_price` directly (no double-discount on price).
    - Combines the base `expected_sellable_pct` with the condition's
      `sellable_factor` via **`min(base, condition_factor)`**, not
@@ -341,6 +341,8 @@ Open `config/settings.py` to tune behaviour. Common knobs:
 | `DECISION_THRESHOLDS["min_expected_roi_pct"]`        | Min ROI-on-cost for BUY                                         |
 | `CONDITION_TO_SELL_THROUGH`                          | Per-condition `(sellable_factor, risk_score)` map               |
 | `DEMAND_SCORE` / `CATEGORY_LIQUIDITY_SCORE` / `CATEGORY_RISK_SCORE` | Per-category demand / liquidity / risk priors        |
+| `CATEGORY_WEIGHT_TIER`                               | Maps categories to weight tiers (`small`, `medium`, `bulky`, `weightless`) |
+| `TRANSPORT_COST_PER_UNIT`                            | Defines ₹/unit transport cost per weight tier                   |
 | `KNOWN_BRANDS`                                       | Brand recognition list                                          |
 
 Set `BULK_INTEL_LOG_LEVEL=DEBUG` for verbose stage logs.
