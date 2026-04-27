@@ -44,6 +44,7 @@ class ProfitEngine:
         * ``defective``   (factor 0.20) — condition binds → 20 % clears
 
         Columns:
+            - ``platform_fee_pct``
             - ``expected_sellable_qty``
             - ``expected_sell_price``
             - ``expected_revenue``
@@ -86,7 +87,10 @@ class ProfitEngine:
         with np.errstate(invalid="ignore"):
             expected_revenue = sellable_qty * expected_sell_price * price_realization
             acquisition_cost = qty * floor * (1.0 + a.get("acquisition_overhead_pct", 0.05))
-            operating_cost = expected_revenue * a.get("operating_cost_pct", 0.25)
+            platform_fee_pct_series = self._resolve_platform_fee_pct(out)
+            platform_fee_pct = platform_fee_pct_series.values
+            ancillary_pct = self.settings.ancillary_revenue_fee_pct
+            operating_cost = expected_revenue * (platform_fee_pct + ancillary_pct)
             expected_cost = acquisition_cost + operating_cost
             expected_profit = expected_revenue - expected_cost
             margin_pct = np.where(
@@ -102,6 +106,7 @@ class ProfitEngine:
                 np.nan,
             )
 
+        out["platform_fee_pct"] = platform_fee_pct_series.round(4)
         out["expected_sellable_qty"] = sellable_qty
         out["expected_sell_price"] = expected_sell_price.round(2)
         out["expected_revenue"] = expected_revenue.round(2)
@@ -117,6 +122,40 @@ class ProfitEngine:
         )
         return out
 
+
+    def _resolve_platform_fee_pct(self, df: pd.DataFrame) -> pd.Series:
+        """Return per-row platform commission fraction.
+
+        Looks up ``PLATFORM_FEES[platform][category]`` with these fallbacks:
+          1. exact (platform, category)
+          2. ``PLATFORM_FEES[platform]["__default__"]``
+          3. ``FALLBACK_OPERATING_COST_PCT``
+        """
+        def get_fee(row):
+            platform = row.get("platform", self.settings.default_platform)
+            if pd.isna(platform):
+                platform = self.settings.default_platform
+
+            # fallback for category
+            category = row.get("category", row.get("normalized_category", "unknown"))
+            if pd.isna(category):
+                category = "unknown"
+
+            platform_fees = self.settings.platform_fees.get(platform)
+            if not platform_fees:
+                return self.settings.fallback_operating_cost_pct
+
+            fee = platform_fees.get(category)
+            if fee is not None:
+                return fee
+
+            fee = platform_fees.get("__default__")
+            if fee is not None:
+                return fee
+
+            return self.settings.fallback_operating_cost_pct
+
+        return df.apply(get_fee, axis=1)
 
     def _condition_multipliers(
         self, df: pd.DataFrame

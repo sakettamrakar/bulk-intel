@@ -29,6 +29,7 @@ PRIMARY_COLUMNS: tuple[str, ...] = (
     "match_confidence",
     "unreliable_match",
     "discount_percentage",
+    "platform_fee_pct",
     "market_gap",
     "sellability_score",
     "risk_score",
