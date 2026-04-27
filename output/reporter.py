@@ -29,6 +29,7 @@ PRIMARY_COLUMNS: tuple[str, ...] = (
     "match_confidence",
     "unreliable_match",
     "discount_percentage",
+    "platform_fee_pct",
     "market_gap",
     "sellability_score",
     "risk_score",
@@ -41,6 +42,7 @@ PRIMARY_COLUMNS: tuple[str, ...] = (
     "scenario_roi_median",
     "scenario_roi_high",
     "recommendation",
+    "confidence_gate_applied",
     "reasoning",
 )
 
