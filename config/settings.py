@@ -65,8 +65,6 @@ PROFIT_ASSUMPTIONS: Mapping[str, float] = {
     # in ``real_price`` from intelligence/pricing.py.  Drop below 1.0 when
     # modelling end-of-life inventory that has to clear on a deadline.
     "price_realization_factor": 1.0,
-    # Operating costs as a fraction of revenue (logistics, returns, platform fees).
-    "operating_cost_pct": 0.25,
     # Floor multiplier to absorb hidden costs of acquiring the lot.
     "acquisition_overhead_pct": 0.05,
 }
@@ -88,11 +86,14 @@ INSPECTION_COST_BY_CONDITION: Mapping[str, float] = {
 # Decision thresholds (0–100 scoring scale)
 # --------------------------------------------------------------------------
 
+CONFIDENCE_THRESHOLD_FOR_BUY: float = 0.6
+
 DECISION_THRESHOLDS: Mapping[str, float] = {
     "buy_score_min": 60.0,
     "risk_score_max": 60.0,
     "min_expected_margin_pct": 15.0,
     "min_expected_roi_pct": 25.0,
+    "min_buy_match_confidence": CONFIDENCE_THRESHOLD_FOR_BUY,
 }
 
 # --------------------------------------------------------------------------
@@ -183,9 +184,90 @@ KNOWN_BRANDS: frozenset[str] = frozenset(
 )
 
 
+
+# --------------------------------------------------------------------------
+# Platform Fees
+# --------------------------------------------------------------------------
+
+# Per-platform, per-category fee as a fraction of revenue.
+# Sources cited inline; verify against current rate cards quarterly.
+#
+# Each entry is the *all-in* commission an operator pays the platform on
+# revenue (commission + closing fee + payment-gateway + platform-specific
+# fulfilment if not separately modelled).  GST on commission is included.
+#
+# When a (platform, category) pair is missing, fall back to
+# PLATFORM_FEES[platform]["__default__"], then to FALLBACK_OPERATING_COST_PCT.
+PLATFORM_FEES: Mapping[str, Mapping[str, float]] = {
+    "amazon": {
+        # Source: Amazon India Seller Central Fee Schedule (Q1 2026).
+        "electronics":  0.085,
+        "appliances":   0.115,
+        "kitchen":      0.155,
+        "kitchenware":  0.155,
+        "home":         0.165,
+        "apparel":      0.175,
+        "beauty":       0.195,
+        "toys":         0.155,
+        "books":        0.075,
+        "stationery":   0.095,
+        "__default__":  0.155,
+    },
+    "flipkart": {
+        # Source: Flipkart Seller Hub India (Q1 2026).
+        "electronics":  0.090,
+        "appliances":   0.110,
+        "kitchen":      0.140,
+        "kitchenware":  0.140,
+        "home":         0.155,
+        "apparel":      0.180,
+        "beauty":       0.210,
+        "toys":         0.150,
+        "books":        0.060,
+        "stationery":   0.085,
+        "__default__":  0.150,
+    },
+    "meesho": {
+        # Source: Meesho Supplier Panel (Q1 2026); flat 0% commission for many
+        # categories, monetisation via shipping + ads.  Approximate effective rate.
+        "electronics":  0.040,
+        "appliances":   0.040,
+        "kitchen":      0.030,
+        "kitchenware":  0.030,
+        "home":         0.030,
+        "apparel":      0.020,
+        "beauty":       0.030,
+        "toys":         0.030,
+        "books":        0.020,
+        "stationery":   0.020,
+        "__default__":  0.030,
+    },
+    "b2b": {
+        # B2B / kabadi reseller channel — operator just absorbs a flat handling fee.
+        "__default__":  0.080,
+    },
+}
+
+DEFAULT_PLATFORM: str = "amazon"
+
+# Last-resort fallback used only when both platform and category are unknown.
+# Kept deliberately conservative.
+FALLBACK_OPERATING_COST_PCT: float = 0.18
+
+# Payment-gateway / closing-fee / packaging delta over and above the
+# platform commission.  Empirically ~3-6 % of revenue across platforms.
+ANCILLARY_REVENUE_FEE_PCT: float = 0.04
+
 @dataclass(frozen=True)
 class Settings:
     """Immutable bundle of tunables passed through the pipeline."""
+
+    platform_fees: Mapping[str, Mapping[str, float]] = field(
+        default_factory=lambda: {k: dict(v) for k, v in PLATFORM_FEES.items()}
+    )
+    default_platform: str = DEFAULT_PLATFORM
+    fallback_operating_cost_pct: float = FALLBACK_OPERATING_COST_PCT
+    ancillary_revenue_fee_pct: float = ANCILLARY_REVENUE_FEE_PCT
 
     scoring_weights: Mapping[str, float] = field(default_factory=lambda: dict(SCORING_WEIGHTS))
     risk_weights: Mapping[str, float] = field(default_factory=lambda: dict(RISK_WEIGHTS))

@@ -4,6 +4,9 @@ Both scores are produced on a 0–100 scale.  Weights live in
 ``config.settings`` so a domain expert can re-tune without touching
 this code.  The implementation is intentionally vectorised over pandas
 so it remains fast on six-figure manifests.
+
+This module also includes the `apply_confidence_gate` function to
+downgrade items with low match confidence from BUY to REVIEW.
 """
 from __future__ import annotations
 
@@ -147,6 +150,41 @@ class ScoringEngine:
         # 0% discount → 100; ≥50% discount → 0 (linear in between).
         scaled = np.clip(1.0 - d / 50.0, 0.0, 1.0) * 100.0
         return pd.Series(scaled, index=discount.index)
+
+
+def apply_confidence_gate(df: pd.DataFrame, settings: Settings | None = None) -> pd.DataFrame:
+    """Downgrade rows with low match confidence from BUY to REVIEW.
+
+    Adds a `confidence_gate_applied` boolean column to the DataFrame and appends
+    a note to `reasoning` if the row is gated. Should be called after the
+    initial per-row decisions are made.
+    """
+    settings = settings or get_settings()
+    out = df.copy()
+    min_conf = settings.decision_thresholds.get("min_buy_match_confidence", 0.6)
+
+    match_confidence = pd.to_numeric(out.get("match_confidence", pd.Series([1.0] * len(out), index=out.index)), errors="coerce").fillna(1.0)
+
+    # Identify rows that fail the confidence gate
+    fails_gate = match_confidence < min_conf
+    out["confidence_gate_applied"] = False
+
+    if fails_gate.any():
+        # Only downgrade if it's currently BUY
+        needs_downgrade = fails_gate & (out.get("recommendation", pd.Series(["SKIP"] * len(out), index=out.index)) == "BUY")
+
+        # Apply downgrade
+        if "recommendation" in out:
+            out.loc[needs_downgrade, "recommendation"] = "REVIEW"
+            out.loc[needs_downgrade, "confidence_gate_applied"] = True
+
+            # Update reasoning
+            reasoning = out.loc[needs_downgrade, "reasoning"].fillna("")
+            out.loc[needs_downgrade, "reasoning"] = reasoning.apply(
+                lambda r: r + f"; match confidence below {min_conf:.2f} — price is synthetic" if r else f"match confidence below {min_conf:.2f} — price is synthetic"
+            )
+
+    return out
 
 
 def compute_scores(df: pd.DataFrame, settings: Settings | None = None) -> pd.DataFrame:

@@ -186,6 +186,7 @@ bulk-intel/
    - Projects `expected_sellable_qty`, `expected_sell_price`,
      `expected_revenue`, `inspection_cost`, `expected_cost`, `expected_profit`,
      `expected_margin_pct`, `expected_roi_pct`.
+   - Note: operating cost is now `platform_fees[platform][category] + ancillary_revenue_fee_pct`.
    - Uses `real_price` directly (no double-discount on price).
    - Combines the base `expected_sellable_pct` with the condition's
      `sellable_factor` via **`min(base, condition_factor)`**, not
@@ -334,12 +335,13 @@ Open `config/settings.py` to tune behaviour. Common knobs:
 | `PROFIT_ASSUMPTIONS["expected_sellable_pct"]`        | Base/cap sell-through. Combined with the per-condition `sellable_factor` via `min(base, condition_factor)` so the more binding constraint wins (no multiplicative double-counting) |
 | `PROFIT_ASSUMPTIONS["expected_sell_price_vs_mrp"]`   | Anchor when no real price available                             |
 | `PROFIT_ASSUMPTIONS["price_realization_factor"]`     | Optional extra haircut on revenue. Defaults to **1.0 (off)** because `real_price` already encodes the realistic-vs-MRP discount. Drop below 1.0 to model clearance/promo erosion |
-| `PROFIT_ASSUMPTIONS["operating_cost_pct"]`           | Logistics + fees as % of revenue                                |
+| `PLATFORM_FEES` / `ANCILLARY_REVENUE_FEE_PCT`        | Logistics + fees as % of revenue                                |
 | `PROFIT_ASSUMPTIONS["acquisition_overhead_pct"]`     | Hidden costs of acquiring the lot                               |
 | `DECISION_THRESHOLDS["buy_score_min"]`               | Min sellability score for BUY                                   |
 | `DECISION_THRESHOLDS["risk_score_max"]`              | Max risk score for BUY/REVIEW                                   |
 | `DECISION_THRESHOLDS["min_expected_margin_pct"]`     | Min margin-on-revenue for BUY                                   |
 | `DECISION_THRESHOLDS["min_expected_roi_pct"]`        | Min ROI-on-cost for BUY                                         |
+| `DECISION_THRESHOLDS["min_buy_match_confidence"]`    | Min match confidence for BUY (missing column defaults to 1.0)   |
 | `CONDITION_TO_SELL_THROUGH`                          | Per-condition `(sellable_factor, risk_score)` map               |
 | `DEMAND_SCORE` / `CATEGORY_LIQUIDITY_SCORE` / `CATEGORY_RISK_SCORE` | Per-category demand / liquidity / risk priors        |
 | `KNOWN_BRANDS`                                       | Brand recognition list                                          |

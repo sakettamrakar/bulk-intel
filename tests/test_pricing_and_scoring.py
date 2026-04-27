@@ -87,3 +87,119 @@ def test_profitability_fields_present(tiny_manifest_df):
         "expected_margin_pct",
     ):
         assert col in df.columns
+
+
+def test_high_confidence_items_keep_buy_rating(tiny_manifest_df):
+    df = _prep(tiny_manifest_df)
+    df["match_confidence"] = 0.9
+    # Force high sellability/profit to get a BUY
+    df["discount_percentage"] = 90.0
+    df["market_gap"] = 50.0
+    df["mrp"] = 1000.0
+    df["floor_price"] = 10.0
+    df["quantity"] = 10
+    df["condition"] = "New"
+    df["brand"] = "samsung"
+    df["category"] = "electronics"
+    df = compute_pricing_metrics(df)
+    df = compute_scores(df)
+    df = compute_profitability(df)
+    df = decide(df)
+
+    # Check that at least one BUY exists and wasn't downgraded
+    buys = df[df["recommendation"] == "BUY"]
+    assert len(buys) > 0
+    assert not buys.iloc[0]["confidence_gate_applied"]
+
+
+def test_low_confidence_items_downgraded_to_review(tiny_manifest_df):
+    df = _prep(tiny_manifest_df)
+    df["match_confidence"] = 0.4
+    # Force high sellability/profit to ordinarily get a BUY
+    df["discount_percentage"] = 90.0
+    df["market_gap"] = 50.0
+    df["mrp"] = 1000.0
+    df["floor_price"] = 10.0
+    df["quantity"] = 10
+    df["condition"] = "New"
+    df["brand"] = "samsung"
+    df["category"] = "electronics"
+    df = compute_pricing_metrics(df)
+    df = compute_scores(df)
+    df = compute_profitability(df)
+
+    # We first run decide normally. But wait, `decide()` handles the gate!
+    # If the gate is applied, the item won't be a BUY in the final output.
+    df = decide(df)
+
+    reviews = df[df["confidence_gate_applied"]]
+    assert len(reviews) > 0
+    assert reviews.iloc[0]["recommendation"] == "REVIEW"
+    assert "price is synthetic" in reviews.iloc[0]["reasoning"]
+
+
+def test_confidence_threshold_applies_to_all_platforms():
+    df = pd.DataFrame([
+        {
+            "sku": "HIGH_CONF",
+            "product_name": "Galaxy S22",
+            "mrp": 1000.0,
+            "floor_price": 10.0,
+            "quantity": 10,
+            "condition": "New",
+            "brand": "samsung",
+            "category": "electronics",
+        },
+        {
+            "sku": "LOW_CONF",
+            "product_name": "Galaxy S22",
+            "mrp": 1000.0,
+            "floor_price": 10.0,
+            "quantity": 10,
+            "condition": "New",
+            "brand": "samsung",
+            "category": "electronics",
+        }
+    ])
+    df = _prep(df)
+
+    # We must set match_confidence AFTER enricher, because enricher overwrites it
+    # to 1.0 when using MRPHeuristicPriceProvider.
+    df.loc[df["sku"] == "HIGH_CONF", "match_confidence"] = 0.8
+    df.loc[df["sku"] == "LOW_CONF", "match_confidence"] = 0.2
+    df["discount_percentage"] = 90.0 # Force passing score
+    df["market_gap"] = 50.0
+    df = compute_scores(df)
+    df = compute_profitability(df)
+    df = decide(df)
+
+    high = df[df["sku"] == "HIGH_CONF"].iloc[0]
+    low = df[df["sku"] == "LOW_CONF"].iloc[0]
+
+    assert high["recommendation"] == "BUY"
+    assert not high["confidence_gate_applied"]
+    assert low["recommendation"] == "REVIEW"
+    assert low["confidence_gate_applied"]
+
+
+def test_confidence_gate_prevents_loss_scenarios(tiny_manifest_df):
+    df = _prep(tiny_manifest_df)
+    df["match_confidence"] = 0.0
+    # Create scenario that passes all other gates
+    df["discount_percentage"] = 90.0
+    df["market_gap"] = 50.0
+    df["mrp"] = 1000.0
+    df["floor_price"] = 10.0
+    df["quantity"] = 10
+    df["condition"] = "New"
+    df["brand"] = "samsung"
+    df["category"] = "electronics"
+    df = compute_pricing_metrics(df)
+    df = compute_scores(df)
+    df = compute_profitability(df)
+    df = decide(df)
+
+    # Despite passing all other gates perfectly, a confidence of 0.0 must yield REVIEW
+    row = df.iloc[0]
+    assert row["recommendation"] == "REVIEW"
+    assert row["confidence_gate_applied"]
