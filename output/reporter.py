@@ -33,6 +33,7 @@ PRIMARY_COLUMNS: tuple[str, ...] = (
     "market_gap",
     "sellability_score",
     "risk_score",
+    "transport_cost",
     "expected_revenue",
     "inspection_cost",
     "expected_profit",

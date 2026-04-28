@@ -183,6 +183,38 @@ KNOWN_BRANDS: frozenset[str] = frozenset(
     }
 )
 
+# --------------------------------------------------------------------------
+# Transport Cost
+# --------------------------------------------------------------------------
+
+# Maps each canonical category to a coarse weight tier. Drives
+# TRANSPORT_COST_PER_UNIT below. Categories not listed default to "medium".
+CATEGORY_WEIGHT_TIER: Mapping[str, str] = {
+    "stationery":   "small",
+    "books":        "small",
+    "beauty":       "small",
+    "apparel":      "small",
+    "toys":         "medium",
+    "electronics":  "medium",
+    "home":         "medium",
+    "kitchen":      "bulky",
+    "kitchenware":  "bulky",
+    "appliances":   "bulky",
+    "unknown":      "medium",
+    "digital":      "weightless",
+}
+
+# ₹/unit transport (inbound from manifest origin + outbound to customer/FBA).
+# Tier values are ballpark India-tier-1-to-tier-2 rates; tune per region.
+TRANSPORT_COST_PER_UNIT: Mapping[str, float] = {
+    "weightless": 0.0,
+    "small":   25.0,
+    "medium":  60.0,
+    "bulky":  150.0,
+}
+
+DEFAULT_WEIGHT_TIER: str = "medium"
+
 
 
 # --------------------------------------------------------------------------
@@ -280,6 +312,9 @@ class Settings:
         default_factory=lambda: {k: dict(v) for k, v in CONDITION_TO_SELL_THROUGH.items()}
     )
     known_brands: frozenset[str] = field(default_factory=lambda: frozenset(KNOWN_BRANDS))
+    category_weight_tier: Mapping[str, str] = field(default_factory=lambda: dict(CATEGORY_WEIGHT_TIER))
+    transport_cost_per_unit: Mapping[str, float] = field(default_factory=lambda: dict(TRANSPORT_COST_PER_UNIT))
+    default_weight_tier: str = "medium"
     inspection_cost_by_condition: Mapping[str, float] = field(default_factory=lambda: dict(INSPECTION_COST_BY_CONDITION))
 
 
