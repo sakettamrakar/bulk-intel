@@ -70,6 +70,19 @@ PROFIT_ASSUMPTIONS: Mapping[str, float] = {
 }
 
 # --------------------------------------------------------------------------
+# Inspection cost
+# --------------------------------------------------------------------------
+
+# ₹/unit cost of inspecting and testing a unit before listing.
+# Only applied to conditions where the platform listing requires a tested
+# product. Values are rough operator estimates; tune per category and labour cost.
+INSPECTION_COST_BY_CONDITION: Mapping[str, float] = {
+    "tested": 0.0,
+    "not_tested": 50.0,
+    "unknown": 50.0,
+}
+
+# --------------------------------------------------------------------------
 # Decision thresholds (0–100 scoring scale)
 # --------------------------------------------------------------------------
 
@@ -302,6 +315,7 @@ class Settings:
     category_weight_tier: Mapping[str, str] = field(default_factory=lambda: dict(CATEGORY_WEIGHT_TIER))
     transport_cost_per_unit: Mapping[str, float] = field(default_factory=lambda: dict(TRANSPORT_COST_PER_UNIT))
     default_weight_tier: str = "medium"
+    inspection_cost_by_condition: Mapping[str, float] = field(default_factory=lambda: dict(INSPECTION_COST_BY_CONDITION))
 
 
 def get_settings() -> Settings:

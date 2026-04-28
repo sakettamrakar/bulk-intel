@@ -35,6 +35,7 @@ PRIMARY_COLUMNS: tuple[str, ...] = (
     "risk_score",
     "transport_cost",
     "expected_revenue",
+    "inspection_cost",
     "expected_profit",
     "expected_margin_pct",
     "expected_roi_pct",
