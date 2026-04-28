@@ -49,6 +49,16 @@ RISK_WEIGHTS: Mapping[str, float] = {
 # Profitability assumptions (configurable, deterministic)
 # --------------------------------------------------------------------------
 
+PRICING_STRATEGY: Mapping[str, float] = {
+    # Liquidation buyers can't realise the full Amazon listed price; this is
+    # the conservative discount applied to amazon_price before it competes
+    # with the wholesale and fallback anchors in pricing.py.
+    "amazon_discount_factor": 0.70,
+    # When neither amazon nor wholesale price is available, anchor real_price
+    # at this fraction of MRP.
+    "fallback_pct_of_mrp": 0.45,
+}
+
 PROFIT_ASSUMPTIONS: Mapping[str, float] = {
     # Base/cap sell-through.  Combined with the per-condition
     # ``sellable_factor`` via ``min(base, condition_factor)`` so the more
@@ -123,6 +133,9 @@ CONDITION_TO_SELL_THROUGH: Mapping[str, Mapping[str, float]] = {
 # Domain heuristics (kept here so non-engineers can tweak)
 # --------------------------------------------------------------------------
 
+# Demand = "How many people want this category?"
+# Influenced by search volume, total transactions. High demand does NOT
+# guarantee fast inventory clearance if seller density is too high.
 DEMAND_SCORE: Mapping[str, float] = {
     "electronics": 90.0,
     "appliances": 75.0,
@@ -139,19 +152,23 @@ DEMAND_SCORE: Mapping[str, float] = {
     "unknown": 50.0,
 }
 
+# Category liquidity = "How fast can a single seller's inventory clear?"
+# Influenced by seller density and marketplace velocity. For example,
+# electronics has very high demand but ~thousands of competing sellers,
+# resulting in lower liquidity per seller.
 CATEGORY_LIQUIDITY_SCORE: Mapping[str, float] = {
-    "electronics": 90.0,
-    "appliances": 75.0,
+    "electronics": 40.0,
+    "appliances": 55.0,
     "apparel": 75.0,
-    "home": 70.0,
-    "kitchen": 70.0,
-    "kitchenware": 70.0,
-    "cooking": 70.0,
-    "pots_pans": 70.0,
-    "beauty": 80.0,
-    "toys": 65.0,
-    "books": 40.0,
-    "stationery": 35.0,
+    "home": 65.0,
+    "kitchen": 55.0,
+    "kitchenware": 55.0,
+    "cooking": 55.0,
+    "pots_pans": 60.0,
+    "beauty": 55.0,
+    "toys": 70.0,
+    "books": 60.0,
+    "stationery": 50.0,
     "unknown": 50.0,
 }
 
@@ -171,17 +188,93 @@ CATEGORY_RISK_SCORE: Mapping[str, float] = {
     "unknown": 60.0,
 }
 
-KNOWN_BRANDS: frozenset[str] = frozenset(
-    {
-        # Global tech / lifestyle
-        "samsung", "apple", "sony", "lg", "boat", "philips", "nike", "adidas",
-        "puma", "levis", "hm", "zara", "lakme", "loreal", "nivea", "dove",
-        # Indian household / kitchen / appliances
-        "prestige", "bajaj", "havells", "milton", "cello", "pigeon", "bergner",
-        "butterfly", "lifelong", "solimo", "amazon_basics", "amazonbasics",
-        "crystal", "tosaa", "blowhot", "longway", "surya", "stovekraft",
-    }
-)
+# Curated list of brands that move noticeably faster on Indian marketplaces.
+# Maintained approx. April 2026.
+KNOWN_BRANDS: frozenset[str] = frozenset({
+    # ---------- Electronics & mobile ----------
+    "samsung", "apple", "sony", "lg", "boat", "philips", "realme", "xiaomi",
+    "mi", "redmi", "oneplus", "oppo", "vivo", "lenovo", "dell", "hp",
+    "asus", "acer", "jbl", "noise", "boult", "nothing", "fastrack", "fire-boltt",
+    "pebble", "ambrane", "ptron", "mivi", "zebronics", "iball", "micromax",
+    "lava", "intex", "syska", "portronics", "bose", "sennheiser", "marshall",
+    "jabra", "skullcandy", "infinity", "anker", "spigen", "belkin", "dji",
+    "gopro", "canon", "nikon", "fujifilm", "panasonic", "hitachi", "daikin",
+    "voltas", "bluestar", "mitsubishi", "o_general", "carrier", "toshiba",
+
+    # ---------- Home appliances & kitchen ----------
+    "prestige", "bajaj", "havells", "milton", "cello", "pigeon", "bergner",
+    "butterfly", "lifelong", "solimo", "amazon_basics", "amazonbasics",
+    "crystal", "tosaa", "blowhot", "longway", "surya", "stovekraft",
+    "wonderchef", "whirlpool", "lloyd", "haier", "godrej", "bosch",
+    "siemens", "croma", "reliance_digital", "kent", "aquaguard",
+    "pureit", "livpure", "eureka_forbes", "agaro", "inalsa", "morphy_richards",
+    "kenstar", "usha", "crompton", "orient", "v_guard", "vguard", "ifb",
+    "kutchina", "glen", "faber", "hindware", "sunflame", "elica", "borosil",
+    "tupperware", "la_opala", "treo", "nayasa", "signoraware", "polyset",
+    "jaypee", "supreme", "nilkamal", "cello_furniture",
+
+    # ---------- Apparel & footwear ----------
+    "nike", "adidas", "puma", "levis", "hm", "zara", "uniqlo", "decathlon",
+    "titan", "fossil", "casio", "skagen", "tommy_hilfiger", "us_polo", "us_polo_assn",
+    "allen_solly", "louis_philippe", "van_heusen", "peter_england", "raymond",
+    "bata", "woodland", "skechers", "reebok", "asics", "fila", "campus",
+    "metro_shoes", "liberty", "mochi", "red_tape", "sparx", "lancer",
+    "paragon", "relaxo", "flite", "bahamas", "crocs", "biba", "w_for_woman",
+    "aurelia", "global_desi", "imara", "soch", "fabindia", "max",
+    "pantaloons", "lifestyle", "shoppers_stop", "trends", "zudio",
+    "h_and_m", "pepe_jeans", "wrangler", "lee", "flying_machine", "spykar",
+    "numero_uno", "mufti", "killer", "jack_and_jones", "madame", "only",
+    "vero_moda", "forever_21", "marks_and_spencer",
+
+    # ---------- Beauty & personal care ----------
+    "lakme", "loreal", "maybelline", "nivea", "dove", "ponds", "olay",
+    "neutrogena", "the_body_shop", "mamaearth", "myglamm", "plum",
+    "biotique", "himalaya", "wow", "minimalist", "the_derma_co",
+    "garnier", "cetaphil", "pantene", "tresemme", "head_shoulders",
+    "clinic_plus", "sunsilk", "matrix", "schwarzkopf", "wella", "revlon",
+    "mac", "sugar", "faces_canada", "colorbar", "swiss_beauty", "insight",
+    "mcaffeine", "dot_and_key", "earth_rhythm", "skinn", "engaging",
+    "fogg", "wild_stone", "denver", "nivea_men", "gillette", "park_avenue",
+    "axe", "old_spice", "beardo", "ustaad", "bombay_shaving_company",
+    "himalaya_men", "vaseline", "boroline", "vicco", "patanjali",
+
+    # ---------- Home & lifestyle ----------
+    "wakefit", "the_sleep_company", "duroflex", "sleepyhead", "centuary",
+    "ikea", "urban_ladder", "pepperfry", "home_centre",
+    "kurlon", "sleepwell", "peps", "spaces", "bombay_dyeing", "portico",
+    "d_decor", "trident", "welspun", "story_at_home", "haus_and_kinder",
+
+    # ---------- Toys & kids ----------
+    "lego", "hamleys", "fisher_price", "mattel", "hasbro", "funskool",
+    "hot_wheels", "barbie", "nerf", "play_doh", "chicco", "mee_mee",
+    "luvlap", "r_for_rabbit", "firstcry", "babyhug", "mothercare",
+    "johnsons_baby", "sebamed", "pampers", "mamy_poko", "huggies",
+
+    # ---------- Books & stationery ----------
+    "penguin", "harpercollins", "scholastic", "classmate", "navneet",
+    "camel", "faber_castell", "pilot", "uni_ball", "reynolds",
+    "cello_pens", "parker", "waterman", "cross", "luxor",
+    "camlin", "doms", "apsara", "nataraj", "kangaro",
+})
+
+# Source brand string (lowercased, alpha-num + underscore) → canonical brand.
+# Apply *after* lowercasing, before known-brand lookup.
+BRAND_ALIASES: Mapping[str, str] = {
+    "amazon_brand_solimo":  "solimo",
+    "amazon_basics":        "amazonbasics",
+    "amazon_brand":         "amazonbasics",
+    "amazonbasics_in":      "amazonbasics",
+    "stovekraft_pigeon":    "pigeon",
+    "pigeon_by_stovekraft": "pigeon",
+    "tommy":                "tommy_hilfiger",
+    "us_polo_assn":         "us_polo",
+    "uspolo_assn":          "us_polo",
+    "h_and_m":              "hm",
+    "h_m":                  "hm",
+    "levis_strauss":        "levis",
+    "v_guard":              "vguard",
+    "fab_india":            "fabindia"
+}
 
 # --------------------------------------------------------------------------
 # Transport Cost
@@ -216,6 +309,20 @@ TRANSPORT_COST_PER_UNIT: Mapping[str, float] = {
 DEFAULT_WEIGHT_TIER: str = "medium"
 
 
+
+# --------------------------------------------------------------------------
+# Channel Routing
+# --------------------------------------------------------------------------
+
+CHANNEL_ROUTING_RULES: tuple[Mapping[str, object], ...] = (
+    {"condition": {"condition_normalized": ("defective", "salvage")}, "platform": "b2b"},
+    {"condition": {"category": "electronics", "brand_known": True, "price_band": ("MID", "HIGH")}, "platform": "amazon"},
+    {"condition": {"category": "electronics"}, "platform": "flipkart"},
+    {"condition": {"category": ("apparel", "home")}, "platform": "meesho"},
+    {"condition": {"category": "beauty"}, "platform": "amazon"},
+    {"condition": {"category": ("kitchen", "kitchenware", "appliances")}, "platform": "flipkart"},
+    {"condition": {}, "platform": "amazon"},
+)
 
 # --------------------------------------------------------------------------
 # Platform Fees
@@ -290,6 +397,36 @@ FALLBACK_OPERATING_COST_PCT: float = 0.18
 # platform commission.  Empirically ~3-6 % of revenue across platforms.
 ANCILLARY_REVENUE_FEE_PCT: float = 0.04
 
+# --------------------------------------------------------------------------
+# Return Rate Model
+# --------------------------------------------------------------------------
+
+# Per-category fraction of sold units that are returned.  Returned units
+# generate full reverse-logistics cost and (often) cannot be re-listed
+# at full price; we model both effects below.
+# Sources: Amazon India return policies + operator experience (Q1 2026).
+CATEGORY_RETURN_RATE: Mapping[str, float] = {
+    "electronics":  0.13,
+    "appliances":   0.10,
+    "kitchen":      0.07,
+    "kitchenware":  0.07,
+    "home":         0.06,
+    "apparel":      0.22,    # sizing + colour mismatch dominate
+    "beauty":       0.10,
+    "toys":         0.08,
+    "books":        0.04,
+    "stationery":   0.03,
+    "unknown":      0.10,
+}
+
+# Cost of handling a return as a fraction of the unit sale price
+# (reverse shipping + restocking + partial write-off blended).
+# Empirically ~30% across platforms based on operator experience.
+RETURN_HANDLING_COST_PCT: float = 0.30
+
+# Fallback return rate for unknown categories.
+DEFAULT_RETURN_RATE: float = 0.10
+
 @dataclass(frozen=True)
 class Settings:
     """Immutable bundle of tunables passed through the pipeline."""
@@ -301,6 +438,7 @@ class Settings:
     fallback_operating_cost_pct: float = FALLBACK_OPERATING_COST_PCT
     ancillary_revenue_fee_pct: float = ANCILLARY_REVENUE_FEE_PCT
 
+    pricing_strategy: Mapping[str, float] = field(default_factory=lambda: dict(PRICING_STRATEGY))
     scoring_weights: Mapping[str, float] = field(default_factory=lambda: dict(SCORING_WEIGHTS))
     risk_weights: Mapping[str, float] = field(default_factory=lambda: dict(RISK_WEIGHTS))
     profit_assumptions: Mapping[str, float] = field(default_factory=lambda: dict(PROFIT_ASSUMPTIONS))
@@ -316,6 +454,13 @@ class Settings:
     transport_cost_per_unit: Mapping[str, float] = field(default_factory=lambda: dict(TRANSPORT_COST_PER_UNIT))
     default_weight_tier: str = "medium"
     inspection_cost_by_condition: Mapping[str, float] = field(default_factory=lambda: dict(INSPECTION_COST_BY_CONDITION))
+    category_return_rate: Mapping[str, float] = field(default_factory=lambda: dict(CATEGORY_RETURN_RATE))
+    return_handling_cost_pct: float = RETURN_HANDLING_COST_PCT
+    default_return_rate: float = DEFAULT_RETURN_RATE
+    channel_routing_rules: tuple[Mapping[str, object], ...] = field(
+        default_factory=lambda: tuple(CHANNEL_ROUTING_RULES)
+    )
+    brand_aliases: Mapping[str, str] = field(default_factory=lambda: dict(BRAND_ALIASES))
 
 
 def get_settings() -> Settings:

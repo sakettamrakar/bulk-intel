@@ -5,7 +5,7 @@ scoring and decisioning consumes them.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -14,10 +14,15 @@ from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+from config.settings import Settings, get_settings
 
 @dataclass(frozen=True)
 class PricingEngine:
-    """Vectorised pricing-metric calculator."""
+    """Vectorised pricing-metric calculator.
+    
+    Depends on Settings for PRICING_STRATEGY.
+    """
+    settings: Settings = field(default_factory=get_settings)
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         """Add pricing metrics to ``df`` and return a new ``DataFrame``.
@@ -36,18 +41,17 @@ class PricingEngine:
         amazon = pd.to_numeric(out.get("amazon_price"), errors="coerce")
         wholesale = pd.to_numeric(out.get("wholesale_price"), errors="coerce")
 
-        # Fallback category price
-        # Using a simple heuristic for fallback_category_price if not defined explicitly elsewhere:
-        # If expected_sell_price_vs_mrp exists in config we could use it, but keeping it self-contained:
-        fallback_category_price = mrp * 0.45
+        fallback_pct = self.settings.pricing_strategy.get("fallback_pct_of_mrp", 0.45)
+        fallback_category_price = mrp * fallback_pct
 
         # Pricing strategy
-        # real_price = min(amazon_price * 0.7, wholesale_price (if available), fallback_category_price)
+        # real_price = min(amazon_price * discount, wholesale_price (if available), fallback_category_price)
 
         real_price = fallback_category_price.copy()
 
-        # apply amazon * 0.7
-        amazon_discounted = amazon * 0.7
+        # apply amazon * discount
+        amazon_discount = self.settings.pricing_strategy.get("amazon_discount_factor", 0.70)
+        amazon_discounted = amazon * amazon_discount
         mask_amazon = amazon_discounted.notna() & (amazon_discounted < real_price.fillna(np.inf))
         real_price.loc[mask_amazon] = amazon_discounted.loc[mask_amazon]
 
@@ -82,6 +86,6 @@ class PricingEngine:
         return out
 
 
-def compute_pricing_metrics(df: pd.DataFrame) -> pd.DataFrame:
+def compute_pricing_metrics(df: pd.DataFrame, settings: Settings | None = None) -> pd.DataFrame:
     """Functional wrapper around :class:`PricingEngine`."""
-    return PricingEngine().compute(df)
+    return PricingEngine(settings=settings or get_settings()).compute(df)

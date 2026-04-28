@@ -1,0 +1,26 @@
+==============================================================================
+LIQUIDATION INTELLIGENCE — MANIFEST SUMMARY
+==============================================================================
+Total rows           : 47
+  BUY                : 0
+  REVIEW             : 2
+  SKIP               : 45
+
+--- REVIEW basket (2 items) ---
+  projected revenue:       1,196.37
+  projected cost   :       1,119.16
+  projected profit :          77.21
+  projected ROI    :           6.9%
+
+  Cost breakdown:
+    acquisition      :       458.85 ( 41.0%)
+    platform fees    :       250.85 ( 22.4%)
+    inspection       :       100.00 (  8.9%)
+    transport        :       300.00 ( 26.8%)
+    return provision :        27.02 (  2.4%)
+    --------
+    total cost       :     1,119.16
+
+Top BUY candidates (by sellability):
+  (none — review thresholds in config/settings.py)
+==============================================================================

@@ -78,6 +78,14 @@ class DecisionEngine:
         expected_revenue = float(df.get("expected_revenue", pd.Series([0.0]*len(df))).sum())
         expected_profit = float(df.get("expected_profit", pd.Series([0.0]*len(df))).sum())
 
+        # Cost breakdown (T-105)
+        acquisition_cost = float(df.get("acquisition_cost", pd.Series([0.0]*len(df))).sum())
+        platform_fees = float(df.get("platform_fee_amount", pd.Series([0.0]*len(df))).sum())
+        inspection_cost = float(df.get("inspection_cost", pd.Series([0.0]*len(df))).sum())
+        transport_cost = float(df.get("transport_cost", pd.Series([0.0]*len(df))).sum())
+        return_provision = float(df.get("return_provision", pd.Series([0.0]*len(df))).sum())
+        total_cost = float(df.get("expected_cost", pd.Series([0.0]*len(df))).sum())
+
         roi_series = pd.to_numeric(df.get("expected_roi_pct", pd.Series([0.0]*len(df))), errors="coerce").dropna()
         roi_low = float(roi_series.quantile(0.25)) if not roi_series.empty else 0.0
         roi_median = float(roi_series.quantile(0.50)) if not roi_series.empty else 0.0
@@ -126,6 +134,20 @@ class DecisionEngine:
         known_brand_qty = float(qty[brand_col.isin(known_brands)].sum())
         known_brand_mix = (known_brand_qty / total_items) * 100 if total_items > 0 else 0.0
 
+        platform_mix = {
+            "amazon":   {"items": 0, "expected_revenue": 0.0, "expected_profit": 0.0},
+            "flipkart": {"items": 0, "expected_revenue": 0.0, "expected_profit": 0.0},
+            "meesho":   {"items": 0, "expected_revenue": 0.0, "expected_profit": 0.0},
+            "b2b":      {"items": 0, "expected_revenue": 0.0, "expected_profit": 0.0}
+        }
+        platform_col = df.get("platform", pd.Series(["amazon"]*len(df)))
+        for p in platform_mix:
+            mask = platform_col == p
+            if mask.any():
+                platform_mix[p]["items"] = int(qty[mask].sum())
+                platform_mix[p]["expected_revenue"] = float(df.get("expected_revenue", pd.Series([0.0]*len(df)))[mask].sum())
+                platform_mix[p]["expected_profit"] = float(df.get("expected_profit", pd.Series([0.0]*len(df)))[mask].sum())
+
         reasons = []
         if roi_median > 40:
             reasons.append("High ROI")
@@ -152,6 +174,14 @@ class DecisionEngine:
             "total_items": round(total_items, 2),
             "expected_sellable": round(expected_sellable, 2),
             "expected_revenue": round(expected_revenue, 2),
+            "expected_cost_breakdown": {
+                "acquisition": round(acquisition_cost, 2),
+                "platform_fees": round(platform_fees, 2),
+                "inspection": round(inspection_cost, 2),
+                "transport": round(transport_cost, 2),
+                "return_provision": round(return_provision, 2),
+                "total": round(total_cost, 2),
+            },
             "roi_low": round(roi_low, 2),
             "roi_median": round(roi_median, 2),
             "roi_high": round(roi_high, 2),
@@ -161,6 +191,7 @@ class DecisionEngine:
             "low_match_confidence_pct": round(low_match_confidence_pct, 2),
             "high_price_uncertainty": high_price_uncertainty,
             "margin": round(margin, 2),
+            "platform_mix": platform_mix,
             "decision": decision,
             "decision_reasons": reasons
         })

@@ -27,3 +27,33 @@ def test_clean_keywords_are_deduplicated_and_lowercased(tiny_manifest_df):
     keywords = cleaned.loc[0, "keywords"]
     assert keywords == list(dict.fromkeys(keywords))
     assert all(k == k.lower() for k in keywords)
+
+
+def test_brand_alias_amazon_brand_solimo_to_solimo():
+    import pandas as pd
+    from config.settings import Settings
+    df = pd.DataFrame([{"product_name": "Something", "brand": "Amazon Brand - Solimo", "category": "unknown", "quantity": 1, "condition": "New", "mrp": 100, "floor_price": 50}])
+    cleaned = clean_manifest(df, Settings())
+    assert cleaned.loc[0, "brand"].lower() == "solimo"
+
+
+def test_brand_alias_pigeon_by_stovekraft_to_pigeon():
+    import pandas as pd
+    from config.settings import Settings
+    df = pd.DataFrame([{"product_name": "Something", "brand": "Pigeon by Stovekraft", "category": "unknown", "quantity": 1, "condition": "New", "mrp": 100, "floor_price": 50}])
+    cleaned = clean_manifest(df, Settings())
+    assert cleaned.loc[0, "brand"].lower() == "pigeon"
+
+
+def test_unknown_brand_passthrough():
+    import pandas as pd
+    from config.settings import Settings
+    df = pd.DataFrame([{"product_name": "Something", "brand": "Random Corp 123", "category": "unknown", "quantity": 1, "condition": "New", "mrp": 100, "floor_price": 50}])
+    cleaned = clean_manifest(df, Settings())
+    assert cleaned.loc[0, "brand"] == "Random_Corp_123".title()
+
+
+def test_known_brand_count_grows_after_t203():
+    from config.settings import KNOWN_BRANDS, BRAND_ALIASES
+    assert len(KNOWN_BRANDS) >= 200
+    assert len(BRAND_ALIASES) >= 14

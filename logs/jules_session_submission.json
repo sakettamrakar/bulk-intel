@@ -1,0 +1,42 @@
+{
+  "timestamp": "C:\\GIT\\bulk-intel",
+  "phase": 1,
+  "round": 1,
+  "tasks_submitted": 4,
+  "successful": 4,
+  "source": "sources/github/sakettamrakar/bulk-intel",
+  "results": [
+    {
+      "success": true,
+      "task_id": "T-101",
+      "session_id": "17791584597315774768",
+      "session_name": "sessions/17791584597315774768",
+      "web_uri": null,
+      "status": null
+    },
+    {
+      "success": true,
+      "task_id": "T-102",
+      "session_id": "9242917629240408439",
+      "session_name": "sessions/9242917629240408439",
+      "web_uri": null,
+      "status": null
+    },
+    {
+      "success": true,
+      "task_id": "T-103",
+      "session_id": "10211984576565721895",
+      "session_name": "sessions/10211984576565721895",
+      "web_uri": null,
+      "status": null
+    },
+    {
+      "success": true,
+      "task_id": "T-106",
+      "session_id": "17619166190212311858",
+      "session_name": "sessions/17619166190212311858",
+      "web_uri": null,
+      "status": null
+    }
+  ]
+}

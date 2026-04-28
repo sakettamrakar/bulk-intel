@@ -23,16 +23,16 @@ tomorrow.
   Manifest CSV/XLSX
         │
         ▼
-  ┌────────────┐    ┌────────────┐    ┌────────────┐
-  │ Ingestion  │ ─► │  Cleaning  │ ─► │ Enrichment │
-  │  loader.py │    │ cleaner.py │    │ enricher.py│
-  └────────────┘    └────────────┘    └────────────┘
-        │                 │                  │
-        │  raw_category    brand /        amazon_price /
-        │  + alias map    normalized_     wholesale_price
-        │                 category +      + match_confidence
-        │                 condition       + unreliable_match
-        ▼                 ▼                  ▼
+  ┌────────────┐    ┌────────────┐    ┌────────────┐    ┌────────────┐
+  │ Ingestion  │ ─► │  Cleaning  │ ─► │  Routing   │ ─► │ Enrichment │
+  │  loader.py │    │ cleaner.py │    │ channel.py │    │ enricher.py│
+  └────────────┘    └────────────┘    └────────────┘    └────────────┘
+        │                 │                  │                 │
+        │  raw_category   │ brand /          │ platform        │ amazon_price /
+        │  + alias map    │ normalized_      ▼                 │ wholesale_price
+        │                 │ category +                         │ + match_confidence
+        │                 │ condition                          │ + unreliable_match
+        ▼                 ▼                                    ▼
   ┌──────────────────────────────────────────────────────────┐
   │                  Intelligence Layer                       │
   │                                                           │
@@ -159,6 +159,9 @@ bulk-intel/
    - Normalizes free-text condition labels into one of seven canonical
      buckets: `new`, `like_new`, `used_good`, `used_fair`,
      `not_tested`, `defective`, `unknown`.
+2.5. **Routing** (`intelligence/channel.py`)
+   - Assigns each row a target platform (e.g. `amazon`, `flipkart`, `meesho`, `b2b`)
+     based on the deterministic `CHANNEL_ROUTING_RULES`.
 3. **Enrichment** (`enrichment/enricher.py`)
    - Resolves `amazon_price`, `wholesale_price`, `match_confidence`,
      `unreliable_match` via a chain of `PriceProvider`s.  Default
@@ -185,13 +188,17 @@ bulk-intel/
 6. **Profitability** (`intelligence/profit.py`)
    - Projects `expected_sellable_qty`, `expected_sell_price`,
      `expected_revenue`, `transport_cost`, `inspection_cost`,
-     `platform_fee_pct`, `expected_cost`, `expected_profit`,
+     `platform_fee_pct`, `return_rate`, `return_provision`,
+     `acquisition_cost`, `platform_fee_amount`, `expected_cost`, `expected_profit`,
      `expected_margin_pct`, `expected_roi_pct`.
    - Operating cost is `platform_fees[platform][category] +
      ancillary_revenue_fee_pct` (T-101); inspection cost is
      `qty × inspection_cost_by_condition[condition]` (T-102);
      transport cost is
-     `qty × transport_cost_per_unit[category_weight_tier]` (T-103).
+     `qty × transport_cost_per_unit[category_weight_tier]` (T-103);
+     return provision is `gross_revenue × return_rate[category] × return_handling_cost_pct` (T-104).
+   - Expected revenue is net of returns: `gross_revenue × (1 − return_rate)`.
+   - Cost decomposition surfaces all five cost components per row for audit (T-105).
    - Uses `real_price` directly (no double-discount on price).
    - Combines the base `expected_sellable_pct` with the condition's
      `sellable_factor` via **`min(base, condition_factor)`**, not
@@ -221,12 +228,17 @@ bulk-intel/
 9. **Output** (`output/reporter.py`)
    - Writes a ranked CSV sorted by sellability with all derived
      columns (incl. `condition_normalized`, `expected_roi_pct`,
-     `scenario_roi_*`, `match_confidence`, `unreliable_match`).
+     `scenario_roi_*`, `match_confidence`, `unreliable_match`,
+     cost decomposition: `acquisition_cost`, `platform_fee_pct`,
+     `platform_fee_amount`, `inspection_cost`, `transport_cost`,
+     `return_rate`, `return_provision`).
    - Plain-text summary breaks out **per-basket economics**
-     (BUY / REVIEW: revenue, cost, profit, ROI) plus the top 10 BUY
+     (BUY / REVIEW: revenue, cost, profit, ROI) **plus cost
+     decomposition table** showing acquisition, platform fees, inspection,
+     transport, and return provision as % of total cost, plus the top 10 BUY
      candidates.
-   - JSON lot summary file (`*_summary.json`) for dashboards and
-     downstream automation.
+   - JSON lot summary file (`*_summary.json`) includes `expected_cost_breakdown`
+     with aggregated cost components for dashboards and downstream automation.
 
 ---
 
@@ -249,17 +261,37 @@ python -m pipeline.run_pipeline \
   --output output/reports
 
 # Real Bulk4Traders manifest (1,367 rows, all "Not Tested")
+# (By default it picks up the local india_top1k_v1.json catalog for pricing!)
 python -m pipeline.run_pipeline \
   --input data/e8c203803afa10d11e3844dd57636779.xlsx \
   --output output/reports
+
+# Run with a custom catalog overriding the default
+BULK_INTEL_CATALOG_PATH=/path/to/custom_catalog.json python -m pipeline.run_pipeline \
+  --input data/e8c203803afa10d11e3844dd57636779.xlsx \
+  --output output/reports
+
+# Backtest on historical outcomes
+python -m tools.backtest \
+  --manifest data/sample_manifest.csv \
+  --outcomes data/historical/EXAMPLE_lot_outcomes.csv \
+  --report output/reports/backtest_report.json
 ```
 
-Each run produces three files in `--output`:
+Each run produces four files in `--output`:
 
 ```
 <input_stem>_report.csv          # ranked, fully scored line items
+<input_stem>_report_rollup.csv   # rolled-up view grouped by SKU or product name
 <input_stem>_report_summary.txt  # human-readable per-basket economics
 <input_stem>_report_summary.json # machine-readable lot summary
+```
+
+Example `_rollup.csv` snippet:
+
+```csv
+group_key,units,mrp,floor_price,real_price,expected_revenue,expected_cost,expected_profit,expected_roi_pct,sellability_score,risk_score,condition_normalized,recommendation,unit_recommendation_mix
+Pigeon | Mixer Grinder,412,4500.0,318.0,1200.0,494400.0,131016.0,363384.0,277.36,88.5,12.0,new,BUY,BUY:412 REVIEW:0 SKIP:0
 ```
 
 Example JSON lot summary (real manifest):
@@ -269,6 +301,14 @@ Example JSON lot summary (real manifest):
   "total_items": 1367,
   "expected_sellable": 574.14,
   "expected_revenue": 529320.22,
+  "expected_cost_breakdown": {
+    "acquisition": 136700.00,
+    "platform_fees": 105864.00,
+    "inspection": 28732.00,
+    "transport": 34416.00,
+    "return_provision": 15879.00,
+    "total": 1108591.00
+  },
   "roi_low": -33.78,
   "roi_median": -19.83,
   "roi_high": -2.17,
@@ -336,11 +376,15 @@ Open `config/settings.py` to tune behaviour. Common knobs:
 | ---------------------------------------------------- | --------------------------------------------------------------- |
 | `SCORING_WEIGHTS`                                    | Sellability sub-component weights (discount, market_gap, demand, liquidity, brand, price_band) |
 | `RISK_WEIGHTS`                                       | Risk sub-component weights (incl. `condition_risk`)             |
+| `PRICING_STRATEGY["amazon_discount_factor"]`         | Conservative discount applied to amazon_price before competing with other prices (default 0.70) |
+| `PRICING_STRATEGY["fallback_pct_of_mrp"]`            | Anchor for real_price as a fraction of MRP when no other prices are available (default 0.45) |
 | `INSPECTION_COST_BY_CONDITION`                       | Inspection cost per unit applied by condition                   |
 | `PROFIT_ASSUMPTIONS["expected_sellable_pct"]`        | Base/cap sell-through. Combined with the per-condition `sellable_factor` via `min(base, condition_factor)` so the more binding constraint wins (no multiplicative double-counting) |
 | `PROFIT_ASSUMPTIONS["expected_sell_price_vs_mrp"]`   | Anchor when no real price available                             |
 | `PROFIT_ASSUMPTIONS["price_realization_factor"]`     | Optional extra haircut on revenue. Defaults to **1.0 (off)** because `real_price` already encodes the realistic-vs-MRP discount. Drop below 1.0 to model clearance/promo erosion |
-| `PLATFORM_FEES` / `ANCILLARY_REVENUE_FEE_PCT`        | Logistics + fees as % of revenue                                |
+| `CHANNEL_ROUTING_RULES`                              | Ordered list of predicate rules to assign a target platform     |
+| `PLATFORM_FEES` / `ANCILLARY_REVENUE_FEE_PCT`        | Logistics + fees as % of revenue (T-101)                        |
+| `CATEGORY_RETURN_RATE` / `RETURN_HANDLING_COST_PCT`  | Per-category return rate + handling cost (T-104)                |
 | `PROFIT_ASSUMPTIONS["acquisition_overhead_pct"]`     | Hidden costs of acquiring the lot                               |
 | `DECISION_THRESHOLDS["buy_score_min"]`               | Min sellability score for BUY                                   |
 | `DECISION_THRESHOLDS["risk_score_max"]`              | Max risk score for BUY/REVIEW                                   |
@@ -348,10 +392,12 @@ Open `config/settings.py` to tune behaviour. Common knobs:
 | `DECISION_THRESHOLDS["min_expected_roi_pct"]`        | Min ROI-on-cost for BUY                                         |
 | `DECISION_THRESHOLDS["min_buy_match_confidence"]`    | Min match confidence for BUY (missing column defaults to 1.0)   |
 | `CONDITION_TO_SELL_THROUGH`                          | Per-condition `(sellable_factor, risk_score)` map               |
-| `DEMAND_SCORE` / `CATEGORY_LIQUIDITY_SCORE` / `CATEGORY_RISK_SCORE` | Per-category demand / liquidity / risk priors        |
+| `DEMAND_SCORE`                                       | Per-category prior ("How many people want this category?")      |
+| `CATEGORY_LIQUIDITY_SCORE`                           | Per-category prior ("How fast a single seller's inventory clears")|
+| `CATEGORY_RISK_SCORE`                                | Per-category risk prior                                         |
 | `CATEGORY_WEIGHT_TIER`                               | Maps categories to weight tiers (`small`, `medium`, `bulky`, `weightless`) |
 | `TRANSPORT_COST_PER_UNIT`                            | Defines ₹/unit transport cost per weight tier                   |
-| `KNOWN_BRANDS`                                       | Brand recognition list                                          |
+| `KNOWN_BRANDS`                                       | Brand recognition list (curated 200+ list); aliases are resolved before lookup |
 
 Set `BULK_INTEL_LOG_LEVEL=DEBUG` for verbose stage logs.
 
@@ -375,10 +421,12 @@ Set `BULK_INTEL_LOG_LEVEL=DEBUG` for verbose stage logs.
   Protocol — `name: str` and
   `lookup(row) -> (amazon, wholesale, confidence)` — and pass it into
   `Pipeline(providers=[...])`. No other module changes.
-- **Fuzzy catalog matching**: `FuzzyCatalogPriceProvider` already does
+- **How to add a new platform**: Add a mapping rule to `CHANNEL_ROUTING_RULES` in `config/settings.py` identifying your new platform string, and ensure `PLATFORM_FEES` covers it.
+- **How to add a brand alias**: Add a mapping to `BRAND_ALIASES` in `config/settings.py` from the snake_cased raw brand string to your desired canonical brand string.
+- **Fuzzy catalog matching**: `FuzzyCatalogPriceProvider` executes
   `difflib`-based name matching with a configurable confidence
-  threshold; feed it any list of `{product_name, amazon_price,
-  wholesale_price}` dicts.
+  threshold. The default pipeline automatically wires in `india_top1k_v1.json`.
+- **How to swap or extend the catalog**: Point the `BULK_INTEL_CATALOG_PATH` environment variable to a JSON file matching the schema in `data/catalog/india_top1k_v1.json`. This is ideal for adding new SKUs on the fly.
 - **New condition labels**: add a row to `CONDITION_TO_SELL_THROUGH`
   in `config/settings.py` and a regex to `_CONDITION_PATTERNS` in
   `processing/cleaner.py`.  Pattern order matters — put more specific

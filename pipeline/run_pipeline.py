@@ -7,6 +7,7 @@ will eventually be wrapped by a FastAPI handler for the SaaS layer.
 from __future__ import annotations
 
 import argparse
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Sequence
@@ -18,8 +19,11 @@ from enrichment.enricher import (
     Enricher,
     MRPHeuristicPriceProvider,
     PriceProvider,
+    FuzzyCatalogPriceProvider,
 )
+from enrichment.catalog_loader import load_catalog
 from ingestion.loader import ManifestLoader
+from intelligence.channel import ChannelRouter
 from intelligence.decision import DecisionEngine
 from intelligence.pricing import PricingEngine
 from intelligence.profit import ProfitEngine
@@ -32,6 +36,17 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+_DEFAULT_CATALOG_PATH = os.environ.get("BULK_INTEL_CATALOG_PATH", "data/catalog/india_top1k_v1.json")
+
+def _get_default_providers():
+    return (
+        FuzzyCatalogPriceProvider(
+            catalog=load_catalog(_DEFAULT_CATALOG_PATH),
+            confidence_threshold=0.6,
+        ),
+        MRPHeuristicPriceProvider(),
+    )
+
 @dataclass
 class Pipeline:
     """Wire all the stages together with sensible defaults.
@@ -43,7 +58,7 @@ class Pipeline:
 
     settings: Settings = field(default_factory=get_settings)
     providers: Sequence[PriceProvider] = field(
-        default_factory=lambda: (MRPHeuristicPriceProvider(),)
+        default_factory=_get_default_providers
     )
 
     def run(self, input_path: str | Path, output_dir: str | Path) -> dict[str, Path]:
@@ -53,7 +68,7 @@ class Pipeline:
         loader = ManifestLoader()
         cleaner = ManifestCleaner(self.settings)
         enricher = Enricher(list(self.providers))
-        pricing = PricingEngine()
+        pricing = PricingEngine(self.settings)
         scoring = ScoringEngine(self.settings)
         profit = ProfitEngine(self.settings)
         decision = DecisionEngine(self.settings)
@@ -61,6 +76,7 @@ class Pipeline:
 
         df = loader.load(input_path)
         df = cleaner.clean(df)
+        df = ChannelRouter(self.settings).route(df)
         df = enricher.enrich(df)
         df = pricing.compute(df)
         df = scoring.compute(df)
@@ -75,8 +91,9 @@ class Pipeline:
     def run_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """Run all in-memory stages (skipping I/O) — useful for tests/notebooks."""
         df = ManifestCleaner(self.settings).clean(df)
+        df = ChannelRouter(self.settings).route(df)
         df = Enricher(list(self.providers)).enrich(df)
-        df = PricingEngine().compute(df)
+        df = PricingEngine(self.settings).compute(df)
         df = ScoringEngine(self.settings).compute(df)
         df = ProfitEngine(self.settings).compute(df)
         df = compute_scenarios(df, self.settings)

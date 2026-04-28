@@ -1,0 +1,26 @@
+==============================================================================
+LIQUIDATION INTELLIGENCE — MANIFEST SUMMARY
+==============================================================================
+Total rows           : 15
+  BUY                : 1
+  REVIEW             : 0
+  SKIP               : 14
+
+--- BUY basket (1 items) ---
+  projected revenue:      35,465.62
+  projected cost   :      29,866.92
+  projected profit :       5,598.70
+  projected ROI    :          18.7%
+
+  Cost breakdown:
+    acquisition      :    21,000.00 ( 70.3%)
+    platform fees    :     4,935.94 ( 16.5%)
+    inspection       :     2,500.00 (  8.4%)
+    transport        :     1,250.00 (  4.2%)
+    return provision :       329.06 (  1.1%)
+    --------
+    total cost       :    29,866.92
+
+Top BUY candidates (by sellability):
+  - B4T-0010                     Stationery Notebook Diaries                      sell= 70.0 risk= 13.0 ROI=  77.3% profit=  5598.70
+==============================================================================

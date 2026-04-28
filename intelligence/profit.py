@@ -50,9 +50,11 @@ class ProfitEngine:
             - ``platform_fee_pct``
             - ``expected_sellable_qty``
             - ``expected_sell_price``
-            - ``expected_revenue``
+            - ``expected_revenue`` (net of returns)
             - ``transport_cost``
             - ``inspection_cost``
+            - ``return_rate`` (fraction of sold units that are returned)
+            - ``return_provision`` (cost of handling returns)
             - ``expected_cost``
             - ``expected_profit``
             - ``expected_margin_pct``
@@ -92,14 +94,20 @@ class ProfitEngine:
         transport_cost = self._resolve_transport_cost(out, qty)
 
         with np.errstate(invalid="ignore"):
-            expected_revenue = sellable_qty * expected_sell_price * price_realization
+            gross_revenue = sellable_qty * expected_sell_price * price_realization
+            return_rate = self._resolve_return_rate(out)
+            # Net revenue: returned units don't keep the sale.
+            expected_revenue = gross_revenue * (1.0 - return_rate)
+            # Return-handling cost: each returned unit's sale price × handling pct.
+            return_provision = gross_revenue * return_rate * self.settings.return_handling_cost_pct
+
             acquisition_cost = qty * floor * (1.0 + a.get("acquisition_overhead_pct", 0.05))
             platform_fee_pct_series = self._resolve_platform_fee_pct(out)
             platform_fee_pct = platform_fee_pct_series.values
             ancillary_pct = self.settings.ancillary_revenue_fee_pct
             operating_cost = expected_revenue * (platform_fee_pct + ancillary_pct)
             inspection_cost = self._resolve_inspection_cost(out, qty)
-            expected_cost = acquisition_cost + operating_cost + transport_cost + inspection_cost
+            expected_cost = acquisition_cost + operating_cost + transport_cost + inspection_cost + return_provision
             expected_profit = expected_revenue - expected_cost
             margin_pct = np.where(
                 expected_revenue > 0,
@@ -116,6 +124,12 @@ class ProfitEngine:
 
         out["transport_cost"] = transport_cost.round(2)
         out["platform_fee_pct"] = platform_fee_pct_series.round(4)
+        out["ancillary_revenue_fee_pct"] = ancillary_pct
+        platform_fee_amount = gross_revenue * (platform_fee_pct + ancillary_pct)
+        out["platform_fee_amount"] = platform_fee_amount.round(2)
+        out["acquisition_cost"] = acquisition_cost.round(2)
+        out["return_rate"] = return_rate.round(4)
+        out["return_provision"] = return_provision.round(2)
         out["expected_sellable_qty"] = sellable_qty
         out["expected_sell_price"] = expected_sell_price.round(2)
         out["expected_revenue"] = expected_revenue.round(2)
@@ -206,6 +220,19 @@ class ProfitEngine:
         tier = cat.map(lambda c: tier_map.get(c, default_tier))
         per_unit = tier.map(lambda t: cost_map.get(t, cost_map[default_tier])).astype(float)
         return qty * per_unit
+
+    def _resolve_return_rate(self, df: pd.DataFrame) -> pd.Series:
+        """Return per-row return rate (fraction of sold units returned).
+
+        Looks up ``CATEGORY_RETURN_RATE[category]`` with fallback to
+        ``DEFAULT_RETURN_RATE`` for unknown categories.
+        """
+        table = self.settings.category_return_rate
+        if "category" in df.columns:
+            cat = df["category"].astype("string").str.lower().fillna("unknown")
+        else:
+            cat = pd.Series(["unknown"] * len(df), index=df.index)
+        return cat.map(lambda c: table.get(c, self.settings.default_return_rate)).astype(float)
 
 
 def compute_profitability(

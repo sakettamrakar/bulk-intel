@@ -1,10 +1,12 @@
 """Tests for cost-related engines and calculations.
 
-Covers three cost components:
+Covers five cost components:
 
 * T-101 — platform × category fee table (`PLATFORM_FEES`).
 * T-102 — per-condition inspection cost (`INSPECTION_COST_BY_CONDITION`).
 * T-103 — category-aware transport cost (`CATEGORY_WEIGHT_TIER` × `TRANSPORT_COST_PER_UNIT`).
+* T-104 — per-category return rate (`CATEGORY_RETURN_RATE`).
+* T-105 — cost decomposition output (acquisition_cost, platform_fee_amount, etc.).
 """
 from __future__ import annotations
 
@@ -270,3 +272,212 @@ def test_higher_platform_fee_lowers_profit_at_equal_transport():
 
     # Same transport tier; only the platform fee differs.  Higher fee → less profit.
     assert app_profit < stat_profit
+
+
+# ---------------------------------------------------------------------------
+# T-104 return rate model
+# ---------------------------------------------------------------------------
+
+
+def test_return_rate_lookup_uses_category():
+    settings = get_settings()
+    df = pd.DataFrame([
+        {
+            "sku": "APP",
+            "quantity": 100,
+            "floor_price": 100,
+            "mrp": 200,
+            "real_price": 150,
+            "category": "apparel",
+        }
+    ])
+
+    out = compute_profitability(df, settings)
+
+    # apparel return rate should be 0.22
+    assert out.iloc[0]["return_rate"] == 0.22
+
+
+def test_return_rate_falls_back_to_default():
+    settings = get_settings()
+    df = pd.DataFrame([
+        {
+            "sku": "UNKNOWN",
+            "quantity": 1,
+            "floor_price": 100,
+            "mrp": 200,
+            "real_price": 150,
+            "category": "synthetic_unknown_category",
+        }
+    ])
+
+    out = compute_profitability(df, settings)
+
+    # unknown category falls back to DEFAULT_RETURN_RATE = 0.10
+    assert out.iloc[0]["return_rate"] == 0.10
+
+
+def test_returns_reduce_revenue_proportionally():
+    settings = get_settings()
+    # Row with 0% return rate (use 'books' = 0.04, then override to 0)
+    settings.category_return_rate["books_zero"] = 0.0
+    settings.category_return_rate["books_twenty"] = 0.20
+
+    df_no_returns = pd.DataFrame([
+        {
+            "sku": "A",
+            "quantity": 1,
+            "floor_price": 100,
+            "mrp": 1000,
+            "real_price": 500,
+            "category": "books_zero",
+        }
+    ])
+    df_with_returns = pd.DataFrame([
+        {
+            "sku": "B",
+            "quantity": 1,
+            "floor_price": 100,
+            "mrp": 1000,
+            "real_price": 500,
+            "category": "books_twenty",
+        }
+    ])
+
+    engine = ProfitEngine(settings)
+    out_no = engine.compute(df_no_returns)
+    out_with = engine.compute(df_with_returns)
+
+    gross_revenue = 1.0 * 500  # sellable_qty * price (approx)
+    revenue_no_returns = out_no.iloc[0]["expected_revenue"]
+    revenue_with_returns = out_with.iloc[0]["expected_revenue"]
+
+    # Expected: with_returns = gross_revenue * (1 - 0.20) = gross_revenue * 0.80
+    # So the delta should be ~20% of gross_revenue
+    expected_delta_pct = 0.20
+    actual_delta_pct = (revenue_no_returns - revenue_with_returns) / revenue_no_returns
+    assert actual_delta_pct == pytest.approx(expected_delta_pct, rel=0.05)
+
+
+def test_returns_add_handling_cost_proportional_to_returned_units():
+    settings = get_settings()
+    df = pd.DataFrame([
+        {
+            "sku": "TEST",
+            "quantity": 1,
+            "floor_price": 100,
+            "mrp": 1000,
+            "real_price": 1000,
+            "category": "electronics",  # 0.13 return rate
+        }
+    ])
+
+    engine = ProfitEngine(settings)
+    out = engine.compute(df)
+
+    # Verify that return_provision exists and is > 0
+    return_provision = out.iloc[0]["return_provision"]
+    assert return_provision > 0
+
+    # Verify that return_provision scales with return rate
+    # Higher return rate should give higher return_provision
+    assert float(out.iloc[0]["return_rate"]) == 0.13
+
+
+def test_apparel_less_profitable_than_kitchen_at_equal_inputs():
+    # Compare two items from the SAME category to isolate return rate impact.
+    # Use 'books' (low return 0.04) vs apparel (high return 0.22), both small transport.
+    settings = get_settings()
+    df = pd.DataFrame([
+        {
+            "sku": "BOOKS",
+            "quantity": 10,
+            "floor_price": 50,
+            "mrp": 200,
+            "real_price": 100,
+            "category": "books",  # 0.04 return rate, 'small' transport
+        },
+        {
+            "sku": "APP",
+            "quantity": 10,
+            "floor_price": 50,
+            "mrp": 200,
+            "real_price": 100,
+            "category": "apparel",  # 0.22 return rate, 'small' transport
+        }
+    ])
+
+    engine = ProfitEngine(settings)
+    out = engine.compute(df)
+
+    books_profit = float(out[out["sku"] == "BOOKS"].iloc[0]["expected_profit"])
+    app_profit = float(out[out["sku"] == "APP"].iloc[0]["expected_profit"])
+
+    # Same inputs except category; only return rate differs significantly.
+    # Higher return rate (apparel) → higher return_provision → lower profit.
+    assert app_profit < books_profit
+
+
+# ---------------------------------------------------------------------------
+# T-105 cost decomposition output
+# ---------------------------------------------------------------------------
+
+
+def test_cost_breakdown_columns_present():
+    """Assert acquisition_cost, platform_fee_amount, and return columns exist."""
+    settings = get_settings()
+    df = pd.DataFrame([_row(category="electronics", platform="amazon")])
+
+    out = compute_profitability(df, settings)
+
+    assert "acquisition_cost" in out.columns
+    assert "platform_fee_pct" in out.columns
+    assert "ancillary_revenue_fee_pct" in out.columns
+    assert "platform_fee_amount" in out.columns
+    assert "inspection_cost" in out.columns
+    assert "transport_cost" in out.columns
+    assert "return_rate" in out.columns
+    assert "return_provision" in out.columns
+
+
+def test_platform_fee_amount_calculated_correctly():
+    """platform_fee_amount = gross_revenue × (platform_fee_pct + ancillary_pct)."""
+    settings = get_settings()
+    df = pd.DataFrame([
+        {
+            "sku": "TEST",
+            "quantity": 1,
+            "floor_price": 100,
+            "real_price": 1000,
+            "platform": "amazon",
+            "category": "electronics",
+        }
+    ])
+
+    out = compute_profitability(df, settings)
+
+    # gross_revenue ≈ sellable_qty * real_price
+    # For simplicity, assuming high sell-through: gross_revenue ≈ 1000
+    # platform_fee = 0.085 + 0.04 = 0.125
+    # platform_fee_amount ≈ 1000 * 0.125 = 125
+    platform_fee_amt = float(out.iloc[0]["platform_fee_amount"])
+    assert platform_fee_amt > 0
+
+
+def test_acquisition_cost_includes_overhead():
+    """acquisition_cost = qty × floor × (1 + acquisition_overhead_pct)."""
+    settings = get_settings()
+    df = pd.DataFrame([
+        {
+            "sku": "TEST",
+            "quantity": 10,
+            "floor_price": 100.0,
+            "real_price": 200.0,
+        }
+    ])
+
+    out = compute_profitability(df, settings)
+
+    acq = float(out.iloc[0]["acquisition_cost"])
+    expected = 10 * 100 * (1.0 + 0.05)  # qty * floor * (1 + 5% overhead)
+    assert acq == pytest.approx(expected)

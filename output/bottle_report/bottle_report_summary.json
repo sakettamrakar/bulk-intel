@@ -1,0 +1,28 @@
+{
+  "total_items": 47.0,
+  "expected_sellable": 30.55,
+  "expected_revenue": 14759.42,
+  "expected_cost_breakdown": {
+    "acquisition": 11553.15,
+    "platform_fees": 3104.26,
+    "inspection": 2350.0,
+    "transport": 6690.0,
+    "return_provision": 348.02,
+    "total": 23819.19
+  },
+  "roi_low": 1.21,
+  "roi_median": 41.59,
+  "roi_high": 60.45,
+  "high_unknown_condition_pct": 0.0,
+  "untested_pct": 100.0,
+  "defect_pct": 0.0,
+  "low_match_confidence_pct": 0.0,
+  "high_price_uncertainty": false,
+  "margin": -61.38,
+  "decision": "REVIEW",
+  "decision_reasons": [
+    "High ROI",
+    "Weak brand mix",
+    "Lot is largely untested \u2014 inspection cost dominates"
+  ]
+}

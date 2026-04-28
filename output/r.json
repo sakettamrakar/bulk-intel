@@ -1,0 +1,95 @@
+{
+  "manifest": "data/sample_manifest.csv",
+  "rows_predicted": 15,
+  "rows_with_outcome": 4,
+  "confusion_matrix": {
+    "BUY-profitable": 0,
+    "BUY-loss": 0,
+    "SKIP-would-profit": 2,
+    "SKIP-correct": 2
+  },
+  "predicted_vs_actual": {
+    "roi_correlation": -0.8007,
+    "profit_mae": 4663.815,
+    "calibration_slope": -2.8217,
+    "calibration_intercept": -77.3165
+  },
+  "threshold_sweep": {
+    "buy_score_min": {
+      "30.0": {
+        "buys": 0,
+        "precision": 0.0,
+        "profit": 0.0
+      },
+      "45.0": {
+        "buys": 0,
+        "precision": 0.0,
+        "profit": 0.0
+      },
+      "60.0": {
+        "buys": 0,
+        "precision": 0.0,
+        "profit": 0.0
+      },
+      "75.0": {
+        "buys": 0,
+        "precision": 0.0,
+        "profit": 0.0
+      },
+      "90.0": {
+        "buys": 0,
+        "precision": 0.0,
+        "profit": 0.0
+      }
+    },
+    "min_expected_roi_pct": {
+      "10.0": {
+        "buys": 0,
+        "precision": 0.0,
+        "profit": 0.0
+      },
+      "15.0": {
+        "buys": 0,
+        "precision": 0.0,
+        "profit": 0.0
+      },
+      "25.0": {
+        "buys": 0,
+        "precision": 0.0,
+        "profit": 0.0
+      },
+      "40.0": {
+        "buys": 0,
+        "precision": 0.0,
+        "profit": 0.0
+      }
+    },
+    "min_expected_margin_pct": {
+      "5.0": {
+        "buys": 0,
+        "precision": 0.0,
+        "profit": 0.0
+      },
+      "10.0": {
+        "buys": 0,
+        "precision": 0.0,
+        "profit": 0.0
+      },
+      "15.0": {
+        "buys": 0,
+        "precision": 0.0,
+        "profit": 0.0
+      },
+      "25.0": {
+        "buys": 0,
+        "precision": 0.0,
+        "profit": 0.0
+      }
+    }
+  },
+  "recommended_thresholds": {
+    "buy_score_min": 30.0,
+    "min_expected_roi_pct": 10.0,
+    "min_expected_margin_pct": 5.0
+  }
+}

@@ -203,3 +203,54 @@ def test_confidence_gate_prevents_loss_scenarios(tiny_manifest_df):
     row = df.iloc[0]
     assert row["recommendation"] == "REVIEW"
     assert row["confidence_gate_applied"]
+
+
+def test_demand_and_liquidity_are_not_identical():
+    from config.settings import DEMAND_SCORE, CATEGORY_LIQUIDITY_SCORE
+    diff_count = 0
+    for k in DEMAND_SCORE:
+        if DEMAND_SCORE[k] != CATEGORY_LIQUIDITY_SCORE[k]:
+            diff_count += 1
+    assert diff_count >= 6
+
+
+def test_electronics_high_demand_low_liquidity():
+    from config.settings import DEMAND_SCORE, CATEGORY_LIQUIDITY_SCORE
+    assert DEMAND_SCORE["electronics"] > CATEGORY_LIQUIDITY_SCORE["electronics"]
+
+
+def test_apparel_demand_close_to_liquidity():
+    from config.settings import DEMAND_SCORE, CATEGORY_LIQUIDITY_SCORE
+    assert abs(DEMAND_SCORE["apparel"] - CATEGORY_LIQUIDITY_SCORE["apparel"]) <= 10
+
+def test_real_price_uses_settings_amazon_discount():
+    from config.settings import Settings
+    from intelligence.pricing import PricingEngine
+    df = pd.DataFrame([
+        {"sku": "A1", "mrp": 1000.0, "amazon_price": 500.0, "floor_price": 100.0}
+    ])
+    s = Settings(pricing_strategy={"amazon_discount_factor": 1.0, "fallback_pct_of_mrp": 0.45})
+    df_priced = PricingEngine(s).compute(df)
+    assert df_priced.loc[0, "real_price"] == 500.0
+
+def test_real_price_uses_settings_fallback_pct():
+    from config.settings import Settings
+    from intelligence.pricing import PricingEngine
+    df = pd.DataFrame([
+        {"sku": "A1", "mrp": 1000.0, "floor_price": 100.0}
+    ])
+    s = Settings(pricing_strategy={"amazon_discount_factor": 0.7, "fallback_pct_of_mrp": 0.30})
+    df_priced = PricingEngine(s).compute(df)
+    assert df_priced.loc[0, "real_price"] == 300.0
+
+def test_default_settings_match_legacy_constants():
+    from config.settings import Settings
+    from intelligence.pricing import PricingEngine
+    df = pd.DataFrame([
+        {"sku": "A1", "mrp": 1000.0, "amazon_price": 500.0, "floor_price": 100.0}
+    ])
+    df_priced = PricingEngine(Settings()).compute(df)
+    # default amazon_discount is 0.7. So 500 * 0.7 = 350
+    # default fallback is 0.45. So 1000 * 0.45 = 450
+    # min is 350.
+    assert df_priced.loc[0, "real_price"] == 350.0

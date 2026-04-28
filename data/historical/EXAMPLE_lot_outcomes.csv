@@ -1,0 +1,5 @@
+manifest_id,sku,realised_units_sold,realised_avg_sale_price,realised_returns,realised_total_cost,realised_holding_days,notes
+sample_manifest,B4T-0001,3,6000.0,0,15000.0,14,BUY-profitable (Samsung buds flip)
+sample_manifest,B4T-0002,8,1200.0,1,10000.0,30,BUY-loss (boAt headphones returned)
+sample_manifest,B4T-0004,4,1800.0,0,6000.0,45,SKIP-would-profit (Levis assumed zero margin but worked)
+sample_manifest,B4T-0006,15,350.0,5,5500.0,60,SKIP-correct (Generic knife sets flopped)

@@ -24,6 +24,32 @@ htmlcov/
 # IDEs
 .vscode/
 .idea/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDEs
+.vscode/
+.idea/
 *.swp
 
 # OS
@@ -35,3 +61,7 @@ output/reports/
 output/exports/
 *.log
 .env
+
+# Real outcome data is highly sensitive (margins). Only ship synthetic examples.
+data/historical/*.csv
+!data/historical/EXAMPLE_lot_outcomes.csv

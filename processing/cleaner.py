@@ -132,24 +132,38 @@ class ManifestCleaner:
     # Attribute extraction
     # ------------------------------------------------------------------
 
+    def _normalise_brand(self, raw: str) -> str:
+        """Lowercase + alias-resolve a raw brand string."""
+        if not isinstance(raw, str) or not raw.strip():
+            return ""
+        s = re.sub(r"[^a-z0-9]+", "_", raw.lower()).strip("_")
+        return self.settings.brand_aliases.get(s, s)
+
     def _fill_brand(self, df: pd.DataFrame) -> pd.Series:
         known = self.settings.known_brands
-        existing = df["brand"].astype("string").str.lower().str.strip()
+        
+        def safe_norm(x):
+            if pd.isna(x) or not str(x).strip():
+                return "<na>"
+            return self._normalise_brand(str(x))
+            
+        existing = df["brand"].apply(safe_norm).astype("string")
 
         def infer(row: pd.Series) -> str | None:
             current = row["brand_lc"]
             if isinstance(current, str) and current and current != "<na>":
                 return current.title()
             for token in row["keywords"]:
-                if token in known:
-                    return token.title()
+                t_norm = self._normalise_brand(token)
+                if t_norm in known:
+                    return t_norm.title()
             return None
 
         work = df.assign(brand_lc=existing)
         return work.apply(infer, axis=1).astype("string")
 
     def _fill_category(self, df: pd.DataFrame) -> pd.Series:
-        existing = df["category"].astype("string").str.lower().str.strip()
+        existing = df.get("category", pd.Series(["unknown"] * len(df))).astype("string").str.lower().str.strip()
 
         def infer(row: pd.Series) -> str:
             current = row["category_lc"]

@@ -1,0 +1,177 @@
+{
+  "manifest": {
+    "project": "bulk-intel",
+    "phase": 1,
+    "round": 1,
+    "submission_date": "2026-04-27",
+    "total_effort_hours": 16,
+    "parallelizable": true,
+    "priority": "P0",
+    "description": "Phase 1 Round 1: Cost-engine foundation tasks (no dependencies, can run in parallel)"
+  },
+  "tasks": [
+    {
+      "id": "T-101",
+      "title": "Decompose operating_cost_pct into platform x category fee table",
+      "phase": 1,
+      "round": 1,
+      "effort_hours": 6,
+      "priority": "P0",
+      "status": "pending",
+      "depends_on": [],
+      "blocks": [
+        "T-104",
+        "T-105",
+        "T-201",
+        "T-205"
+      ],
+      "file_path": "docs/wbs/phase-1/T-101-platform-fee-table.md",
+      "description": "Replace flat operating_cost_pct (0.25) with structured PLATFORM_FEES lookup keyed on (platform, category). Real Amazon fees in India vary 5-30% by category.",
+      "key_changes": [
+        "config/settings.py - add PLATFORM_FEES dict with 3+ platforms x 10+ categories",
+        "intelligence/profit.py - replace flat fee with table lookup",
+        "output/reporter.py - surface platform_fee_pct column",
+        "tests/test_cost_engine.py - new test file"
+      ],
+      "acceptance_criteria": [
+        "PLATFORM_FEES dict with Amazon, Flipkart, Meesho, B2B platforms",
+        "Settings dataclass exposes 4 new fields with defaults",
+        "operating_cost_pct removed from PROFIT_ASSUMPTIONS",
+        "Output CSV includes platform_fee_pct column",
+        "Pipeline runs end-to-end without error",
+        "BUY-basket ROI changes meaningfully on real manifest"
+      ],
+      "test_cases": [
+        "test_platform_fee_lookup_uses_table_value",
+        "test_platform_fee_falls_back_to_platform_default",
+        "test_platform_fee_falls_back_to_global_default",
+        "test_default_platform_used_when_column_missing",
+        "test_apparel_costs_more_than_kitchen"
+      ]
+    },
+    {
+      "id": "T-102",
+      "title": "Add inspection cost for not_tested / unknown",
+      "phase": 1,
+      "round": 1,
+      "effort_hours": 3,
+      "priority": "P0",
+      "status": "pending",
+      "depends_on": [],
+      "blocks": [
+        "T-105"
+      ],
+      "file_path": "docs/wbs/phase-1/T-102-inspection-cost.md",
+      "description": "Add inspection cost model for items with not_tested or unknown condition status. Critical for cost accuracy on liquidation lots.",
+      "key_changes": [
+        "config/settings.py - add INSPECTION_COST_BY_CONDITION",
+        "intelligence/profit.py - add inspection cost calculation",
+        "output/reporter.py - surface inspection_cost column"
+      ],
+      "acceptance_criteria": [
+        "INSPECTION_COST_BY_CONDITION dict added to config",
+        "Inspection cost applied per condition status",
+        "Output includes inspection_cost column",
+        "All condition statuses handled (tested, not_tested, unknown)"
+      ],
+      "test_cases": [
+        "test_inspection_cost_applied_for_unknown",
+        "test_inspection_cost_applied_for_not_tested",
+        "test_no_inspection_cost_for_tested_items",
+        "test_inspection_cost_affects_profit_calculation"
+      ]
+    },
+    {
+      "id": "T-103",
+      "title": "Add category-aware transport cost (weight tiers)",
+      "phase": 1,
+      "round": 1,
+      "effort_hours": 5,
+      "priority": "P0",
+      "status": "pending",
+      "depends_on": [],
+      "blocks": [
+        "T-105",
+        "T-201"
+      ],
+      "file_path": "docs/wbs/phase-1/T-103-transport-cost.md",
+      "description": "Implement category-aware transport cost with weight-based tiers instead of flat rate. Transport can be 5-15% of revenue depending on weight and destination.",
+      "key_changes": [
+        "config/settings.py - add TRANSPORT_COST_BY_CATEGORY_WEIGHT",
+        "intelligence/profit.py - add weight-tier transport cost lookup",
+        "output/reporter.py - surface transport_cost column"
+      ],
+      "acceptance_criteria": [
+        "Transport cost dict with category x weight tiers",
+        "Weight tiers defined for each category",
+        "Transport cost applied per row based on category and weight",
+        "Output includes transport_cost column",
+        "Fallback for unknown categories"
+      ],
+      "test_cases": [
+        "test_transport_cost_by_weight_tier",
+        "test_transport_cost_by_category",
+        "test_transport_fallback_for_unknown_category",
+        "test_transport_cost_affects_profit",
+        "test_zero_transport_for_digital_goods"
+      ]
+    },
+    {
+      "id": "T-106",
+      "title": "Hard gate: low match_confidence downgrades BUY to REVIEW",
+      "phase": 1,
+      "round": 1,
+      "effort_hours": 2,
+      "priority": "P0",
+      "status": "pending",
+      "depends_on": [],
+      "blocks": [],
+      "file_path": "docs/wbs/phase-1/T-106-uncertain-price-gate.md",
+      "description": "Implement pricing confidence gate that downgrades low-confidence price matches from BUY to REVIEW recommendation. Prevents committing capital on uncertain pricing.",
+      "key_changes": [
+        "config/settings.py - add CONFIDENCE_THRESHOLD_FOR_BUY",
+        "intelligence/scoring.py - add confidence gate logic",
+        "output/reporter.py - surface confidence_gate_applied flag"
+      ],
+      "acceptance_criteria": [
+        "CONFIDENCE_THRESHOLD_FOR_BUY constant defined",
+        "Items below threshold automatically downgraded to REVIEW",
+        "Output includes confidence_gate_applied column",
+        "Audit trail of downgraded recommendations"
+      ],
+      "test_cases": [
+        "test_high_confidence_items_keep_buy_rating",
+        "test_low_confidence_items_downgraded_to_review",
+        "test_confidence_threshold_applies_to_all_platforms",
+        "test_confidence_gate_prevents_loss_scenarios"
+      ]
+    }
+  ],
+  "schedule": {
+    "phase": 1,
+    "round": 1,
+    "can_start_immediately": true,
+    "total_duration_estimated_hours": 16,
+    "critical_path": [
+      "T-101 (6h)",
+      "T-104 (5h, depends on T-101)",
+      "T-105 (2h, depends on T-101/T-102/T-103/T-104)"
+    ],
+    "next_round": {
+      "round": 2,
+      "tasks": ["T-104"],
+      "start_after": "All Round 1 tasks complete"
+    }
+  },
+  "execution_notes": {
+    "parallel_execution": "All 4 Round 1 tasks can execute in parallel - no inter-task dependencies",
+    "estimated_total_effort": "16 hours (4 tasks x avg 4h parallel execution)",
+    "quality_gates": [
+      "80%+ test coverage per CLAUDE.md",
+      "All acceptance criteria verified",
+      "Pipeline smoke test on real manifest",
+      "Documentation updates in same commit"
+    ],
+    "blockers": "None - ready to start immediately"
+  }
+}
