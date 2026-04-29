@@ -19,18 +19,33 @@ from typing import Mapping
 
 SCORING_WEIGHTS: Mapping[str, float] = {
     # Higher discount vs MRP => more room to sell profitably.
-    "discount_percentage": 0.25,
+    "discount_percentage": 0.20,
     # Bigger gap between floor and observed market price => stronger margin.
-    "market_gap": 0.20,
+    "market_gap": 0.15,
     # Demand signal proxied via category.
-    "demand_score": 0.15,
+    "demand_score": 0.10,
     # Category liquidity (how fast things move).
-    "category_liquidity": 0.15,
+    "category_liquidity": 0.10,
     # Recognised brands move faster.
-    "brand_score": 0.15,
+    "brand_score": 0.10,
     # Higher price items typically have higher absolute margins.
     "price_band": 0.10,
+    # Strongest single demand signal.
+    "bsr": 0.25,
 }
+
+# BSR bands → 0-100 sellability bonus.  Lower BSR (top of category) = higher
+# bonus.  Buckets are per top-level category since a BSR of 50,000 means very
+# different things in "Kitchen" vs "Books".
+BSR_BUCKETS: Mapping[str, list[tuple[int, float]]] = {
+    "electronics": [(1000, 95), (10000, 80), (50000, 60), (200000, 40), (1_000_000, 25)],
+    "kitchen":     [(500,  95), (5000,  80), (25000, 60), (100_000, 40), (500_000, 25)],
+    "apparel":     [(2000, 95), (20000, 80), (100_000, 60), (500_000, 40), (2_000_000, 25)],
+    "_default":    [(1000, 95), (10000, 80), (50000, 60), (200000, 40), (1_000_000, 25)],
+}
+
+# Default sellability bonus when no BSR is available.
+DEFAULT_BSR_SCORE: float = 50.0
 
 RISK_WEIGHTS: Mapping[str, float] = {
     # Missing critical fields make manual triage expensive.
@@ -440,6 +455,10 @@ class Settings:
 
     pricing_strategy: Mapping[str, float] = field(default_factory=lambda: dict(PRICING_STRATEGY))
     scoring_weights: Mapping[str, float] = field(default_factory=lambda: dict(SCORING_WEIGHTS))
+    bsr_buckets: Mapping[str, list[tuple[int, float]]] = field(
+        default_factory=lambda: {k: list(v) for k, v in BSR_BUCKETS.items()}
+    )
+    default_bsr_score: float = DEFAULT_BSR_SCORE
     risk_weights: Mapping[str, float] = field(default_factory=lambda: dict(RISK_WEIGHTS))
     profit_assumptions: Mapping[str, float] = field(default_factory=lambda: dict(PROFIT_ASSUMPTIONS))
     decision_thresholds: Mapping[str, float] = field(default_factory=lambda: dict(DECISION_THRESHOLDS))

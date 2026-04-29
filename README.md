@@ -179,8 +179,8 @@ bulk-intel/
      `wholesale_gap`.
 5. **Scoring** (`intelligence/scoring.py`)
    - `sellability_score` (0–100) — weighted sum of discount,
-     market_gap, demand_score, category_liquidity, brand_score, and
-     a price-band signal (LOW / MID / HIGH).
+     market_gap, demand_score, category_liquidity, brand_score,
+     a price-band signal (LOW / MID / HIGH), and `amazon_bsr`.
    - `risk_score` (0–100) — weighted sum of missing-data,
      low-quantity, category risk, thin-margin, **and condition risk**
      (e.g. `not_tested` adds +60, `defective` adds +90 before
@@ -374,7 +374,9 @@ Open `config/settings.py` to tune behaviour. Common knobs:
 
 | Setting                                              | Effect                                                          |
 | ---------------------------------------------------- | --------------------------------------------------------------- |
-| `SCORING_WEIGHTS`                                    | Sellability sub-component weights (discount, market_gap, demand, liquidity, brand, price_band) |
+| `SCORING_WEIGHTS`                                    | Sellability sub-component weights (discount, market_gap, demand, liquidity, brand, price_band, bsr) |
+| `BSR_BUCKETS`                                        | BSR bands -> 0-100 sellability bonus based on BSR performance relative to the category. |
+| `DEFAULT_BSR_SCORE`                                  | Default sellability bonus when no BSR is available. |
 | `RISK_WEIGHTS`                                       | Risk sub-component weights (incl. `condition_risk`)             |
 | `PRICING_STRATEGY["amazon_discount_factor"]`         | Conservative discount applied to amazon_price before competing with other prices (default 0.70) |
 | `PRICING_STRATEGY["fallback_pct_of_mrp"]`            | Anchor for real_price as a fraction of MRP when no other prices are available (default 0.45) |

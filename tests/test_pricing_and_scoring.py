@@ -227,9 +227,9 @@ def test_real_price_uses_settings_amazon_discount():
     from config.settings import Settings
     from intelligence.pricing import PricingEngine
     df = pd.DataFrame([
-        {"sku": "A1", "mrp": 1000.0, "amazon_price": 500.0, "floor_price": 100.0}
+        {"sku": "A1", "mrp": 1000.0, "amazon_price": 500.0, "floor_price": 100.0, "brand": "test"}
     ])
-    s = Settings(pricing_strategy={"amazon_discount_factor": 1.0, "fallback_pct_of_mrp": 0.45})
+    s = Settings(pricing_strategy={"amazon_discount_factor": 1.0, "fallback_pct_of_mrp": 0.60})
     df_priced = PricingEngine(s).compute(df)
     assert df_priced.loc[0, "real_price"] == 500.0
 

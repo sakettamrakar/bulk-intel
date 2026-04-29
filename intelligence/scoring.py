@@ -79,6 +79,7 @@ class ScoringEngine:
 
         brand_score = self._brand_score(df.get("brand", pd.Series([""]*len(df))))
         price_band_score = self._price_band_score(real_price)
+        bsr_score = self._bsr_score(df)
 
         return (
             discount * weights.get("discount_percentage", 0.0)
@@ -87,7 +88,32 @@ class ScoringEngine:
             + category_liquidity * weights.get("category_liquidity", 0.0)
             + brand_score * weights.get("brand_score", 0.0)
             + price_band_score * weights.get("price_band", 0.0)
+            + bsr_score * weights.get("bsr", 0.0)
         )
+
+    def _bsr_score(self, df: pd.DataFrame) -> pd.Series:
+        if "amazon_bsr" not in df.columns:
+            return pd.Series(self.settings.default_bsr_score, index=df.index)
+
+        bsr = pd.to_numeric(df["amazon_bsr"], errors="coerce")
+        cat = df.get("category", pd.Series("unknown", index=df.index)).astype("string").str.lower()
+        out = pd.Series(self.settings.default_bsr_score, index=df.index, dtype=float)
+
+        for idx, val in bsr.items():
+            if pd.isna(val):
+                continue
+
+            c = cat.at[idx]
+            buckets = self.settings.bsr_buckets.get(c, self.settings.bsr_buckets.get("_default", []))
+
+            score = self.settings.default_bsr_score
+            for threshold, bucket_score in buckets:
+                if val <= threshold:
+                    score = float(bucket_score)
+                    break
+            out.at[idx] = score
+
+        return out
 
     def _brand_score(self, brand: pd.Series) -> pd.Series:
         known = self.settings.known_brands
@@ -102,11 +128,10 @@ class ScoringEngine:
         weights = self.settings.risk_weights
 
         missing = self._missing_data_penalty(df)
-        low_qty = self._low_quantity_penalty(df["quantity"])
-        category_risk = (
-            df["category"].str.lower().map(self.settings.category_risk).fillna(60.0)
-        )
-        thin_margin = self._thin_margin_penalty(df["discount_percentage"])
+        low_qty = self._low_quantity_penalty(df.get("quantity", pd.Series(1, index=df.index)))
+        category_col = df.get("category", pd.Series("unknown", index=df.index)).astype("string").str.lower()
+        category_risk = category_col.map(self.settings.category_risk).fillna(60.0)
+        thin_margin = self._thin_margin_penalty(df.get("discount_percentage", pd.Series(0, index=df.index)))
         condition_risk = self._condition_risk(df)
 
         return (

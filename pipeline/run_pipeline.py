@@ -15,6 +15,7 @@ from typing import Sequence
 import pandas as pd
 
 from config.settings import Settings, get_settings
+from enrichment.bsr_provider import BSRProvider, FuzzyCatalogBSRProvider
 from enrichment.enricher import (
     Enricher,
     MRPHeuristicPriceProvider,
@@ -47,6 +48,14 @@ def _get_default_providers():
         MRPHeuristicPriceProvider(),
     )
 
+def _get_default_bsr_providers():
+    return (
+        FuzzyCatalogBSRProvider(
+            catalog=load_catalog(_DEFAULT_CATALOG_PATH),
+            confidence_threshold=0.6,
+        ),
+    )
+
 @dataclass
 class Pipeline:
     """Wire all the stages together with sensible defaults.
@@ -60,6 +69,9 @@ class Pipeline:
     providers: Sequence[PriceProvider] = field(
         default_factory=_get_default_providers
     )
+    bsr_providers: Sequence[BSRProvider] | None = field(
+        default_factory=_get_default_bsr_providers
+    )
 
     def run(self, input_path: str | Path, output_dir: str | Path) -> dict[str, Path]:
         """Run the full pipeline and return paths to the written reports."""
@@ -67,7 +79,10 @@ class Pipeline:
 
         loader = ManifestLoader()
         cleaner = ManifestCleaner(self.settings)
-        enricher = Enricher(list(self.providers))
+        enricher = Enricher(
+            providers=list(self.providers),
+            bsr_providers=list(self.bsr_providers) if self.bsr_providers else None
+        )
         pricing = PricingEngine(self.settings)
         scoring = ScoringEngine(self.settings)
         profit = ProfitEngine(self.settings)
@@ -92,7 +107,10 @@ class Pipeline:
         """Run all in-memory stages (skipping I/O) — useful for tests/notebooks."""
         df = ManifestCleaner(self.settings).clean(df)
         df = ChannelRouter(self.settings).route(df)
-        df = Enricher(list(self.providers)).enrich(df)
+        df = Enricher(
+            providers=list(self.providers),
+            bsr_providers=list(self.bsr_providers) if self.bsr_providers else None
+        ).enrich(df)
         df = PricingEngine(self.settings).compute(df)
         df = ScoringEngine(self.settings).compute(df)
         df = ProfitEngine(self.settings).compute(df)
