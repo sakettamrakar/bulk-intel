@@ -1,0 +1,40 @@
+{
+  "version": "v0",
+  "created_at": "2026-04-29",
+  "source_observations": 0,
+  "category_return_rate": {
+    "electronics": 0.13,
+    "appliances": 0.10,
+    "kitchen": 0.07,
+    "kitchenware": 0.07,
+    "home": 0.06,
+    "apparel": 0.22,
+    "beauty": 0.10,
+    "toys": 0.08,
+    "books": 0.04,
+    "stationery": 0.03,
+    "unknown": 0.10
+  },
+  "category_holding_days": {
+    "electronics": 60,
+    "appliances": 75,
+    "kitchen": 90,
+    "kitchenware": 90,
+    "home": 90,
+    "apparel": 120,
+    "beauty": 60,
+    "toys": 100,
+    "books": 180,
+    "stationery": 120,
+    "unknown": 90
+  },
+  "condition_to_sell_through": {
+    "new":         {"sellable_factor": 1.00, "risk_score": 10.0},
+    "like_new":    {"sellable_factor": 0.90, "risk_score": 25.0},
+    "used_good":   {"sellable_factor": 0.75, "risk_score": 40.0},
+    "used_fair":   {"sellable_factor": 0.60, "risk_score": 60.0},
+    "not_tested":  {"sellable_factor": 0.65, "risk_score": 60.0},
+    "defective":   {"sellable_factor": 0.20, "risk_score": 90.0},
+    "unknown":     {"sellable_factor": 0.50, "risk_score": 60.0}
+  }
+}

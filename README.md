@@ -288,6 +288,19 @@ python -m tools.backtest \
   --manifest data/sample_manifest.csv \
   --outcomes data/historical/EXAMPLE_lot_outcomes.csv \
   --report output/reports/backtest_report.json
+
+# Update priors after a real lot lands (T-305 — outcome feedback loop)
+# Dry-run: writes config/priors/v1.json and prints the diff vs latest.
+python -m tools.feedback_update \
+  --outcomes data/historical/lot_X.csv \
+  --current-priors config/priors/latest.json \
+  --new-priors    config/priors/v1.json
+# Apply: also overwrites config/priors/latest.json so subsequent runs use it.
+python -m tools.feedback_update \
+  --outcomes data/historical/lot_X.csv \
+  --current-priors config/priors/latest.json \
+  --new-priors    config/priors/v1.json \
+  --apply
 ```
 
 Each run produces four files in `--output`:
@@ -444,6 +457,7 @@ Set `BULK_INTEL_LOG_LEVEL=DEBUG` for verbose stage logs.
   `difflib`-based name matching with a configurable confidence
   threshold. The default pipeline automatically wires in `india_top1k_v1.json`.
 - **How to swap or extend the catalog**: Point the `BULK_INTEL_CATALOG_PATH` environment variable to a JSON file matching the schema in `data/catalog/india_top1k_v1.json`. This is ideal for adding new SKUs on the fly.
+- **How to override priors (T-305)**: point `BULK_INTEL_PRIORS_PATH` to a JSON snapshot in the `config/priors/` schema. `get_settings()` overlays `category_return_rate`, `category_holding_days`, and `condition_to_sell_through` on top of the in-code defaults; missing or malformed files fall back silently. The default path is `config/priors/latest.json`.
 - **New condition labels**: add a row to `CONDITION_TO_SELL_THROUGH`
   in `config/settings.py` and a regex to `_CONDITION_PATTERNS` in
   `processing/cleaner.py`.  Pattern order matters — put more specific
