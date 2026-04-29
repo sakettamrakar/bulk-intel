@@ -56,7 +56,7 @@ def test_pipeline_uses_catalog_for_known_skus(tmp_path):
     )
     
     df = pd.DataFrame([
-        {"sku": "A1", "product_name": "Unique Test Item", "mrp": 1000, "floor_price": 100, "condition": "new", "quantity": 1}
+        {"sku": "A1", "product_name": "Unique Test Item", "mrp": 1000, "floor_price": 100, "condition": "new", "quantity": 1, "brand": "test"}
     ])
     
     res = pipe.run_dataframe(df)

@@ -19,6 +19,7 @@ from typing import Mapping, Protocol, runtime_checkable
 import numpy as np
 import pandas as pd
 
+from enrichment.bsr_provider import BSRProvider
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -156,6 +157,7 @@ class Enricher:
     """
 
     providers: list[PriceProvider]
+    bsr_providers: list[BSRProvider] | None = None
 
     def enrich(self, df: pd.DataFrame) -> pd.DataFrame:
         """Return a copy of ``df`` with enrichment columns populated."""
@@ -187,6 +189,15 @@ class Enricher:
         out["match_confidence"] = confidence
         out["unreliable_match"] = unreliable
         out["enrichment_source"] = sources
+
+        if self.bsr_providers:
+            bsr_list = []
+            for idx, row in out.iterrows():
+                bsr = self._resolve_bsr(row)
+                bsr_list.append(bsr if bsr is not None else np.nan)
+            out["amazon_bsr"] = bsr_list
+        else:
+            out["amazon_bsr"] = np.nan
 
         logger.info(
             "Amazon prices resolved=%d/%d; wholesale resolved=%d/%d",
@@ -228,11 +239,25 @@ class Enricher:
 
         return amazon, wholesale, best_conf, "+".join(contributing)
 
+    def _resolve_bsr(self, row: pd.Series) -> float | None:
+        if not self.bsr_providers:
+            return None
+        for provider in self.bsr_providers:
+            try:
+                val = provider.lookup(row)
+                if val is not None:
+                    return float(val)
+            except Exception:
+                logger.exception("BSRProvider '%s' failed for sku=%s", provider.name, row.get("sku"))
+        return None
+
 
 def enrich_manifest(
-    df: pd.DataFrame, providers: list[PriceProvider] | None = None
+    df: pd.DataFrame,
+    providers: list[PriceProvider] | None = None,
+    bsr_providers: list[BSRProvider] | None = None,
 ) -> pd.DataFrame:
     """Convenience wrapper using a sensible default provider chain."""
     if providers is None:
         providers = [MRPHeuristicPriceProvider()]
-    return Enricher(providers).enrich(df)
+    return Enricher(providers, bsr_providers=bsr_providers).enrich(df)

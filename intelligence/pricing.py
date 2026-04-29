@@ -52,11 +52,15 @@ class PricingEngine:
         # apply amazon * discount
         amazon_discount = self.settings.pricing_strategy.get("amazon_discount_factor", 0.70)
         amazon_discounted = amazon * amazon_discount
-        mask_amazon = amazon_discounted.notna() & (amazon_discounted < real_price.fillna(np.inf))
+        amazon_discounted = pd.Series(amazon_discounted, index=out.index)
+        amazon_notna = amazon_discounted.notna()
+        mask_amazon = amazon_notna & (amazon_discounted < real_price.fillna(np.inf))
         real_price.loc[mask_amazon] = amazon_discounted.loc[mask_amazon]
 
         # apply wholesale
-        mask_wholesale = wholesale.notna() & (wholesale < real_price.fillna(np.inf))
+        wholesale = pd.Series(wholesale, index=out.index)
+        wholesale_notna = wholesale.notna()
+        mask_wholesale = wholesale_notna & (wholesale < real_price.fillna(np.inf))
         real_price.loc[mask_wholesale] = wholesale.loc[mask_wholesale]
 
         out["real_price"] = real_price

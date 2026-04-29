@@ -9,7 +9,8 @@
       "category": "kitchen",
       "amazon_price": 500.0,
       "wholesale_price": 400.0,
-      "asin": "B000000000"
+      "asin": "B000000000",
+      "bsr": 100
     },
     {
       "product_name": "Samsung Product B Model 1",
@@ -17,7 +18,8 @@
       "category": "electronics",
       "amazon_price": 510.0,
       "wholesale_price": 408.0,
-      "asin": "B000000001"
+      "asin": "B000000001",
+      "bsr": 200
     },
     {
       "product_name": "Apple Product C Model 2",
@@ -25,7 +27,8 @@
       "category": "electronics",
       "amazon_price": 520.0,
       "wholesale_price": 416.0,
-      "asin": "B000000002"
+      "asin": "B000000002",
+      "bsr": 300
     },
     {
       "product_name": "Levis Product D Model 3",
@@ -33,7 +36,8 @@
       "category": "apparel",
       "amazon_price": 530.0,
       "wholesale_price": 424.0,
-      "asin": "B000000003"
+      "asin": "B000000003",
+      "bsr": 400
     },
     {
       "product_name": "Lakme Product E Model 4",
@@ -41,7 +45,8 @@
       "category": "beauty",
       "amazon_price": 540.0,
       "wholesale_price": 432.0,
-      "asin": "B000000004"
+      "asin": "B000000004",
+      "bsr": 500
     },
     {
       "product_name": "Sony Product F Model 5",
@@ -49,7 +54,8 @@
       "category": "electronics",
       "amazon_price": 550.0,
       "wholesale_price": 440.0,
-      "asin": "B000000005"
+      "asin": "B000000005",
+      "bsr": 600
     },
     {
       "product_name": "Lg Product G Model 6",
@@ -57,7 +63,8 @@
       "category": "electronics",
       "amazon_price": 560.0,
       "wholesale_price": 448.0,
-      "asin": "B000000006"
+      "asin": "B000000006",
+      "bsr": 700
     },
     {
       "product_name": "Boat Product H Model 7",
@@ -65,7 +72,8 @@
       "category": "electronics",
       "amazon_price": 570.0,
       "wholesale_price": 456.0,
-      "asin": "B000000007"
+      "asin": "B000000007",
+      "bsr": 800
     },
     {
       "product_name": "Prestige Product I Model 8",
@@ -73,7 +81,8 @@
       "category": "kitchen",
       "amazon_price": 580.0,
       "wholesale_price": 464.0,
-      "asin": "B000000008"
+      "asin": "B000000008",
+      "bsr": 900
     },
     {
       "product_name": "Bajaj Product J Model 9",
@@ -81,7 +90,8 @@
       "category": "kitchen",
       "amazon_price": 590.0,
       "wholesale_price": 472.0,
-      "asin": "B000000009"
+      "asin": "B000000009",
+      "bsr": 1000
     },
     {
       "product_name": "Pigeon Product K Model 10",
@@ -89,7 +99,8 @@
       "category": "kitchen",
       "amazon_price": 600.0,
       "wholesale_price": 480.0,
-      "asin": "B000000010"
+      "asin": "B000000010",
+      "bsr": 1100
     },
     {
       "product_name": "Samsung Product L Model 11",
@@ -97,7 +108,8 @@
       "category": "electronics",
       "amazon_price": 610.0,
       "wholesale_price": 488.0,
-      "asin": "B000000011"
+      "asin": "B000000011",
+      "bsr": 1200
     },
     {
       "product_name": "Apple Product M Model 12",
@@ -105,7 +117,8 @@
       "category": "electronics",
       "amazon_price": 620.0,
       "wholesale_price": 496.0,
-      "asin": "B000000012"
+      "asin": "B000000012",
+      "bsr": 1300
     },
     {
       "product_name": "Levis Product N Model 13",
@@ -113,7 +126,8 @@
       "category": "apparel",
       "amazon_price": 630.0,
       "wholesale_price": 504.0,
-      "asin": "B000000013"
+      "asin": "B000000013",
+      "bsr": 1400
     },
     {
       "product_name": "Lakme Product O Model 14",
@@ -121,7 +135,8 @@
       "category": "beauty",
       "amazon_price": 640.0,
       "wholesale_price": 512.0,
-      "asin": "B000000014"
+      "asin": "B000000014",
+      "bsr": 1500
     },
     {
       "product_name": "Sony Product P Model 15",
@@ -129,7 +144,8 @@
       "category": "electronics",
       "amazon_price": 650.0,
       "wholesale_price": 520.0,
-      "asin": "B000000015"
+      "asin": "B000000015",
+      "bsr": 1600
     },
     {
       "product_name": "Lg Product Q Model 16",
@@ -137,7 +153,8 @@
       "category": "electronics",
       "amazon_price": 660.0,
       "wholesale_price": 528.0,
-      "asin": "B000000016"
+      "asin": "B000000016",
+      "bsr": 1700
     },
     {
       "product_name": "Boat Product R Model 17",
@@ -145,7 +162,8 @@
       "category": "electronics",
       "amazon_price": 670.0,
       "wholesale_price": 536.0,
-      "asin": "B000000017"
+      "asin": "B000000017",
+      "bsr": 1800
     },
     {
       "product_name": "Prestige Product S Model 18",
@@ -153,7 +171,8 @@
       "category": "kitchen",
       "amazon_price": 680.0,
       "wholesale_price": 544.0,
-      "asin": "B000000018"
+      "asin": "B000000018",
+      "bsr": 1900
     },
     {
       "product_name": "Bajaj Product T Model 19",
@@ -161,7 +180,8 @@
       "category": "kitchen",
       "amazon_price": 690.0,
       "wholesale_price": 552.0,
-      "asin": "B000000019"
+      "asin": "B000000019",
+      "bsr": 2000
     },
     {
       "product_name": "Pigeon Product U Model 20",
@@ -169,7 +189,8 @@
       "category": "kitchen",
       "amazon_price": 700.0,
       "wholesale_price": 560.0,
-      "asin": "B000000020"
+      "asin": "B000000020",
+      "bsr": 2100
     },
     {
       "product_name": "Samsung Product V Model 21",
@@ -177,7 +198,8 @@
       "category": "electronics",
       "amazon_price": 710.0,
       "wholesale_price": 568.0,
-      "asin": "B000000021"
+      "asin": "B000000021",
+      "bsr": 2200
     },
     {
       "product_name": "Apple Product W Model 22",
@@ -185,7 +207,8 @@
       "category": "electronics",
       "amazon_price": 720.0,
       "wholesale_price": 576.0,
-      "asin": "B000000022"
+      "asin": "B000000022",
+      "bsr": 2300
     },
     {
       "product_name": "Levis Product X Model 23",
@@ -193,7 +216,8 @@
       "category": "apparel",
       "amazon_price": 730.0,
       "wholesale_price": 584.0,
-      "asin": "B000000023"
+      "asin": "B000000023",
+      "bsr": 2400
     },
     {
       "product_name": "Lakme Product Y Model 24",
@@ -201,7 +225,8 @@
       "category": "beauty",
       "amazon_price": 740.0,
       "wholesale_price": 592.0,
-      "asin": "B000000024"
+      "asin": "B000000024",
+      "bsr": 2500
     },
     {
       "product_name": "Sony Product Z Model 25",
@@ -209,7 +234,8 @@
       "category": "electronics",
       "amazon_price": 750.0,
       "wholesale_price": 600.0,
-      "asin": "B000000025"
+      "asin": "B000000025",
+      "bsr": 2600
     },
     {
       "product_name": "Lg Product A Model 26",
@@ -217,7 +243,8 @@
       "category": "electronics",
       "amazon_price": 760.0,
       "wholesale_price": 608.0,
-      "asin": "B000000026"
+      "asin": "B000000026",
+      "bsr": 2700
     },
     {
       "product_name": "Boat Product B Model 27",
@@ -225,7 +252,8 @@
       "category": "electronics",
       "amazon_price": 770.0,
       "wholesale_price": 616.0,
-      "asin": "B000000027"
+      "asin": "B000000027",
+      "bsr": 2800
     },
     {
       "product_name": "Prestige Product C Model 28",
@@ -233,7 +261,8 @@
       "category": "kitchen",
       "amazon_price": 780.0,
       "wholesale_price": 624.0,
-      "asin": "B000000028"
+      "asin": "B000000028",
+      "bsr": 2900
     },
     {
       "product_name": "Bajaj Product D Model 29",
@@ -241,7 +270,8 @@
       "category": "kitchen",
       "amazon_price": 790.0,
       "wholesale_price": 632.0,
-      "asin": "B000000029"
+      "asin": "B000000029",
+      "bsr": 3000
     },
     {
       "product_name": "Pigeon Product E Model 30",
@@ -249,7 +279,8 @@
       "category": "kitchen",
       "amazon_price": 800.0,
       "wholesale_price": 640.0,
-      "asin": "B000000030"
+      "asin": "B000000030",
+      "bsr": 3100
     },
     {
       "product_name": "Samsung Product F Model 31",
@@ -257,7 +288,8 @@
       "category": "electronics",
       "amazon_price": 810.0,
       "wholesale_price": 648.0,
-      "asin": "B000000031"
+      "asin": "B000000031",
+      "bsr": 3200
     },
     {
       "product_name": "Apple Product G Model 32",
@@ -265,7 +297,8 @@
       "category": "electronics",
       "amazon_price": 820.0,
       "wholesale_price": 656.0,
-      "asin": "B000000032"
+      "asin": "B000000032",
+      "bsr": 3300
     },
     {
       "product_name": "Levis Product H Model 33",
@@ -273,7 +306,8 @@
       "category": "apparel",
       "amazon_price": 830.0,
       "wholesale_price": 664.0,
-      "asin": "B000000033"
+      "asin": "B000000033",
+      "bsr": 3400
     },
     {
       "product_name": "Lakme Product I Model 34",
@@ -281,7 +315,8 @@
       "category": "beauty",
       "amazon_price": 840.0,
       "wholesale_price": 672.0,
-      "asin": "B000000034"
+      "asin": "B000000034",
+      "bsr": 3500
     },
     {
       "product_name": "Sony Product J Model 35",
@@ -289,7 +324,8 @@
       "category": "electronics",
       "amazon_price": 850.0,
       "wholesale_price": 680.0,
-      "asin": "B000000035"
+      "asin": "B000000035",
+      "bsr": 3600
     },
     {
       "product_name": "Lg Product K Model 36",
@@ -297,7 +333,8 @@
       "category": "electronics",
       "amazon_price": 860.0,
       "wholesale_price": 688.0,
-      "asin": "B000000036"
+      "asin": "B000000036",
+      "bsr": 3700
     },
     {
       "product_name": "Boat Product L Model 37",
@@ -305,7 +342,8 @@
       "category": "electronics",
       "amazon_price": 870.0,
       "wholesale_price": 696.0,
-      "asin": "B000000037"
+      "asin": "B000000037",
+      "bsr": 3800
     },
     {
       "product_name": "Prestige Product M Model 38",
@@ -313,7 +351,8 @@
       "category": "kitchen",
       "amazon_price": 880.0,
       "wholesale_price": 704.0,
-      "asin": "B000000038"
+      "asin": "B000000038",
+      "bsr": 3900
     },
     {
       "product_name": "Bajaj Product N Model 39",
@@ -321,7 +360,8 @@
       "category": "kitchen",
       "amazon_price": 890.0,
       "wholesale_price": 712.0,
-      "asin": "B000000039"
+      "asin": "B000000039",
+      "bsr": 4000
     },
     {
       "product_name": "Pigeon Product O Model 40",
@@ -329,7 +369,8 @@
       "category": "kitchen",
       "amazon_price": 900.0,
       "wholesale_price": 720.0,
-      "asin": "B000000040"
+      "asin": "B000000040",
+      "bsr": 4100
     },
     {
       "product_name": "Samsung Product P Model 41",
@@ -337,7 +378,8 @@
       "category": "electronics",
       "amazon_price": 910.0,
       "wholesale_price": 728.0,
-      "asin": "B000000041"
+      "asin": "B000000041",
+      "bsr": 4200
     },
     {
       "product_name": "Apple Product Q Model 42",
@@ -345,7 +387,8 @@
       "category": "electronics",
       "amazon_price": 920.0,
       "wholesale_price": 736.0,
-      "asin": "B000000042"
+      "asin": "B000000042",
+      "bsr": 4300
     },
     {
       "product_name": "Levis Product R Model 43",
@@ -353,7 +396,8 @@
       "category": "apparel",
       "amazon_price": 930.0,
       "wholesale_price": 744.0,
-      "asin": "B000000043"
+      "asin": "B000000043",
+      "bsr": 4400
     },
     {
       "product_name": "Lakme Product S Model 44",
@@ -361,7 +405,8 @@
       "category": "beauty",
       "amazon_price": 940.0,
       "wholesale_price": 752.0,
-      "asin": "B000000044"
+      "asin": "B000000044",
+      "bsr": 4500
     },
     {
       "product_name": "Sony Product T Model 45",
@@ -369,7 +414,8 @@
       "category": "electronics",
       "amazon_price": 950.0,
       "wholesale_price": 760.0,
-      "asin": "B000000045"
+      "asin": "B000000045",
+      "bsr": 4600
     },
     {
       "product_name": "Lg Product U Model 46",
@@ -377,7 +423,8 @@
       "category": "electronics",
       "amazon_price": 960.0,
       "wholesale_price": 768.0,
-      "asin": "B000000046"
+      "asin": "B000000046",
+      "bsr": 4700
     },
     {
       "product_name": "Boat Product V Model 47",
@@ -385,7 +432,8 @@
       "category": "electronics",
       "amazon_price": 970.0,
       "wholesale_price": 776.0,
-      "asin": "B000000047"
+      "asin": "B000000047",
+      "bsr": 4800
     },
     {
       "product_name": "Prestige Product W Model 48",
@@ -393,7 +441,8 @@
       "category": "kitchen",
       "amazon_price": 980.0,
       "wholesale_price": 784.0,
-      "asin": "B000000048"
+      "asin": "B000000048",
+      "bsr": 4900
     },
     {
       "product_name": "Bajaj Product X Model 49",
@@ -401,7 +450,8 @@
       "category": "kitchen",
       "amazon_price": 990.0,
       "wholesale_price": 792.0,
-      "asin": "B000000049"
+      "asin": "B000000049",
+      "bsr": 5000
     },
     {
       "product_name": "Pigeon Product Y Model 50",
