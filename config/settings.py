@@ -427,6 +427,35 @@ RETURN_HANDLING_COST_PCT: float = 0.30
 # Fallback return rate for unknown categories.
 DEFAULT_RETURN_RATE: float = 0.10
 
+# --------------------------------------------------------------------------
+# Capital cost / holding period (T-303)
+# --------------------------------------------------------------------------
+
+# Expected days of inventory holding from purchase to last unit cleared.
+# Pulled from operator's category-specific historical clearance curves.
+# Tune annually as marketplace velocity shifts.
+CATEGORY_HOLDING_DAYS: Mapping[str, int] = {
+    "electronics":  60,
+    "appliances":   75,
+    "kitchen":      90,
+    "kitchenware":  90,
+    "home":         90,
+    "apparel":     120,    # seasonal, slow
+    "beauty":       60,
+    "toys":        100,
+    "books":       180,    # long tail
+    "stationery":  120,
+    "unknown":      90,
+}
+
+# Annualised cost of capital + storage (warehouse rent + WIP financing).
+# Basis: ~6 % RBI repo + ~12 % blended warehouse rent / WIP financing for a
+# typical Indian SMB liquidator.  Self-funded operators may use 10 %; leveraged
+# operators 20 %+.  Tune per operator.
+CAPITAL_COST_PER_YEAR_PCT: float = 0.18
+
+DEFAULT_HOLDING_DAYS: int = 90
+
 @dataclass(frozen=True)
 class Settings:
     """Immutable bundle of tunables passed through the pipeline."""
@@ -457,6 +486,11 @@ class Settings:
     category_return_rate: Mapping[str, float] = field(default_factory=lambda: dict(CATEGORY_RETURN_RATE))
     return_handling_cost_pct: float = RETURN_HANDLING_COST_PCT
     default_return_rate: float = DEFAULT_RETURN_RATE
+    category_holding_days: Mapping[str, int] = field(
+        default_factory=lambda: dict(CATEGORY_HOLDING_DAYS)
+    )
+    capital_cost_per_year_pct: float = CAPITAL_COST_PER_YEAR_PCT
+    default_holding_days: int = DEFAULT_HOLDING_DAYS
     channel_routing_rules: tuple[Mapping[str, object], ...] = field(
         default_factory=lambda: tuple(CHANNEL_ROUTING_RULES)
     )

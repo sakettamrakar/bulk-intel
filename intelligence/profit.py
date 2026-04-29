@@ -55,6 +55,8 @@ class ProfitEngine:
             - ``inspection_cost``
             - ``return_rate`` (fraction of sold units that are returned)
             - ``return_provision`` (cost of handling returns)
+            - ``holding_days`` (per-category expected holding period)
+            - ``holding_cost`` (capital tied up × cost-of-capital × days/365)
             - ``expected_cost``
             - ``expected_profit``
             - ``expected_margin_pct``
@@ -107,7 +109,21 @@ class ProfitEngine:
             ancillary_pct = self.settings.ancillary_revenue_fee_pct
             operating_cost = expected_revenue * (platform_fee_pct + ancillary_pct)
             inspection_cost = self._resolve_inspection_cost(out, qty)
-            expected_cost = acquisition_cost + operating_cost + transport_cost + inspection_cost + return_provision
+            holding_days = self._resolve_holding_days(out)
+            holding_cost = (
+                lot_cost
+                * self.settings.capital_cost_per_year_pct
+                * holding_days
+                / 365.0
+            )
+            expected_cost = (
+                acquisition_cost
+                + operating_cost
+                + transport_cost
+                + inspection_cost
+                + return_provision
+                + holding_cost
+            )
             expected_profit = expected_revenue - expected_cost
             margin_pct = np.where(
                 expected_revenue > 0,
@@ -134,6 +150,8 @@ class ProfitEngine:
         out["expected_sell_price"] = expected_sell_price.round(2)
         out["expected_revenue"] = expected_revenue.round(2)
         out["inspection_cost"] = inspection_cost.round(2)
+        out["holding_days"] = holding_days.astype(int)
+        out["holding_cost"] = holding_cost.round(2)
         out["expected_cost"] = expected_cost.round(2)
         out["expected_profit"] = expected_profit.round(2)
         out["expected_margin_pct"] = pd.Series(margin_pct, index=out.index).round(2)
@@ -220,6 +238,22 @@ class ProfitEngine:
         tier = cat.map(lambda c: tier_map.get(c, default_tier))
         per_unit = tier.map(lambda t: cost_map.get(t, cost_map[default_tier])).astype(float)
         return qty * per_unit
+
+    def _resolve_holding_days(self, df: pd.DataFrame) -> pd.Series:
+        """Return per-row expected holding days.
+
+        Looks up ``CATEGORY_HOLDING_DAYS[category]`` with fallback to
+        ``DEFAULT_HOLDING_DAYS`` for unknown categories.
+        """
+        table = self.settings.category_holding_days
+        default = self.settings.default_holding_days
+        if "category" in df.columns:
+            cat = df["category"].astype("string").str.lower().fillna("unknown")
+        elif "normalized_category" in df.columns:
+            cat = df["normalized_category"].astype("string").str.lower().fillna("unknown")
+        else:
+            cat = pd.Series(["unknown"] * len(df), index=df.index)
+        return cat.map(lambda c: table.get(c, default)).astype(float)
 
     def _resolve_return_rate(self, df: pd.DataFrame) -> pd.Series:
         """Return per-row return rate (fraction of sold units returned).

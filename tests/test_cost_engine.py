@@ -464,6 +464,84 @@ def test_platform_fee_amount_calculated_correctly():
     assert platform_fee_amt > 0
 
 
+# ---------------------------------------------------------------------------
+# T-303 capital cost / holding-period
+# ---------------------------------------------------------------------------
+
+
+from dataclasses import replace
+
+
+def test_holding_cost_zero_when_holding_days_zero():
+    base = get_settings()
+    settings = replace(
+        base,
+        category_holding_days={**base.category_holding_days, "kitchen": 0},
+        default_holding_days=0,
+    )
+    df = pd.DataFrame([
+        {"sku": "A", "quantity": 10, "floor_price": 100, "real_price": 200,
+         "category": "kitchen"}
+    ])
+    out = compute_profitability(df, settings)
+    assert float(out.iloc[0]["holding_cost"]) == 0.0
+    assert int(out.iloc[0]["holding_days"]) == 0
+
+
+def test_holding_cost_scales_linearly_with_days():
+    base = get_settings()
+    settings = replace(
+        base,
+        category_holding_days={**base.category_holding_days,
+                                "cat30": 30, "cat90": 90},
+    )
+    df = pd.DataFrame([
+        {"sku": "A", "quantity": 10, "floor_price": 100, "real_price": 200, "category": "cat30"},
+        {"sku": "B", "quantity": 10, "floor_price": 100, "real_price": 200, "category": "cat90"},
+    ])
+    out = compute_profitability(df, settings)
+    h30 = float(out.iloc[0]["holding_cost"])
+    h90 = float(out.iloc[1]["holding_cost"])
+    assert h90 == pytest.approx(3.0 * h30, rel=1e-2)
+
+
+def test_holding_cost_uses_category_default():
+    settings = get_settings()
+    df = pd.DataFrame([
+        {"sku": "APP", "quantity": 1, "floor_price": 100, "real_price": 200,
+         "category": "apparel"}
+    ])
+    out = compute_profitability(df, settings)
+    assert int(out.iloc[0]["holding_days"]) == 120
+
+
+def test_books_more_expensive_to_hold_than_electronics():
+    settings = get_settings()
+    df = pd.DataFrame([
+        {"sku": "BK", "quantity": 10, "floor_price": 100, "real_price": 200,
+         "category": "books"},
+        {"sku": "EL", "quantity": 10, "floor_price": 100, "real_price": 200,
+         "category": "electronics"},
+    ])
+    out = compute_profitability(df, settings)
+    bk = float(out[out["sku"] == "BK"].iloc[0]["holding_cost"])
+    el = float(out[out["sku"] == "EL"].iloc[0]["holding_cost"])
+    assert bk > el
+
+
+def test_holding_cost_real_manifest_kitchen():
+    """holding_cost ≈ lot_cost × 0.18 × 90/365 ≈ 4.4 % of lot_cost for kitchen."""
+    settings = get_settings()
+    df = pd.DataFrame([
+        {"sku": "K", "quantity": 100, "floor_price": 50, "real_price": 100,
+         "category": "kitchen"}
+    ])
+    out = compute_profitability(df, settings)
+    lot_cost = 100 * 50  # qty * floor
+    expected = lot_cost * 0.18 * 90 / 365.0
+    assert float(out.iloc[0]["holding_cost"]) == pytest.approx(expected, rel=1e-3)
+
+
 def test_acquisition_cost_includes_overhead():
     """acquisition_cost = qty × floor × (1 + acquisition_overhead_pct)."""
     settings = get_settings()
