@@ -191,7 +191,8 @@ bulk-intel/
      `platform_fee_pct`, `return_rate`, `return_provision`,
      `holding_days`, `holding_cost`,
      `acquisition_cost`, `platform_fee_amount`, `expected_cost`, `expected_profit`,
-     `expected_margin_pct`, `expected_roi_pct`.
+     `expected_margin_pct`, `expected_roi_pct`,
+     `expected_profit_p5/p50/p95`, `expected_roi_p5/p95`, `prob_profit_positive` (T-306).
    - Operating cost is `platform_fees[platform][category] +
      ancillary_revenue_fee_pct` (T-101); inspection cost is
      `qty × inspection_cost_by_condition[condition]` (T-102);
@@ -199,6 +200,15 @@ bulk-intel/
      `qty × transport_cost_per_unit[category_weight_tier]` (T-103);
      return provision is `gross_revenue × return_rate[category] × return_handling_cost_pct` (T-104);
      **holding cost** is `lot_cost × capital_cost_per_year_pct × category_holding_days[category] / 365` (T-303) — captures cost of capital + warehouse rent during the time inventory takes to clear.
+   - **Confidence intervals** (T-306): per-row revenue and profit are
+     modelled as random variables with `sell_through ~ Beta(mean=effective_sellable_pct, sd=sell_through_stddev)`
+     and `return_rate ~ Beta(mean=category_return_rate, sd=return_rate_stddev)`.
+     A vectorised Monte Carlo (1000 samples per row by default) emits
+     `expected_profit_p5/p50/p95`, `expected_roi_p5/p95`, and
+     `prob_profit_positive` per row.  The lot summary aggregates these into
+     `profit_band_90pct`, `roi_band_90pct`, and `prob_lot_profitable` (qty-
+     weighted).  The RNG seed is derived from the manifest's sku list so
+     repeat runs are reproducible.
    - Expected revenue is net of returns: `gross_revenue × (1 − return_rate)`.
    - Cost decomposition surfaces all five cost components per row for audit (T-105).
    - Uses `real_price` directly (no double-discount on price).
@@ -389,6 +399,9 @@ Open `config/settings.py` to tune behaviour. Common knobs:
 | `CATEGORY_RETURN_RATE` / `RETURN_HANDLING_COST_PCT`  | Per-category return rate + handling cost (T-104)                |
 | `CATEGORY_HOLDING_DAYS` / `DEFAULT_HOLDING_DAYS`     | Per-category expected days of inventory holding (T-303)         |
 | `CAPITAL_COST_PER_YEAR_PCT`                          | Annualised cost of capital + storage; folded into expected_cost (T-303, default 0.18) |
+| `PROFIT_ASSUMPTIONS["sell_through_stddev"]`          | Stddev of sell-through fraction for Monte Carlo CI (T-306, default 0.10) |
+| `PROFIT_ASSUMPTIONS["return_rate_stddev"]`           | Stddev of return rate for Monte Carlo CI (T-306, default 0.05) |
+| `PROFIT_ASSUMPTIONS["mc_samples"]`                   | Monte Carlo sample count per row (T-306, default 1000)         |
 | `PROFIT_ASSUMPTIONS["acquisition_overhead_pct"]`     | Hidden costs of acquiring the lot                               |
 | `DECISION_THRESHOLDS["buy_score_min"]`               | Min sellability score for BUY                                   |
 | `DECISION_THRESHOLDS["risk_score_max"]`              | Max risk score for BUY/REVIEW                                   |

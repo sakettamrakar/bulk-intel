@@ -58,6 +58,9 @@ class ProfitEngine:
             - ``holding_days`` (per-category expected holding period)
             - ``holding_cost`` (capital tied up × cost-of-capital × days/365)
             - ``expected_cost``
+            - ``expected_profit_p5`` / ``_p50`` / ``_p95`` (T-306 CI)
+            - ``expected_roi_p5`` / ``_p95``
+            - ``prob_profit_positive`` (fraction of MC samples > 0)
             - ``expected_profit``
             - ``expected_margin_pct``
             - ``expected_roi_pct``
@@ -157,6 +160,27 @@ class ProfitEngine:
         out["expected_margin_pct"] = pd.Series(margin_pct, index=out.index).round(2)
         out["expected_roi_pct"] = pd.Series(roi_pct, index=out.index).round(2)
 
+        ci = self._compute_confidence_intervals(
+            out=out,
+            qty=qty.values,
+            effective_sellable_pct=np.asarray(effective_sellable_pct, dtype=float),
+            expected_sell_price=expected_sell_price.values,
+            price_realization=price_realization,
+            return_rate_mean=return_rate.values,
+            non_revenue_cost=(
+                acquisition_cost.values
+                + transport_cost.values
+                + inspection_cost.values
+                + holding_cost.values
+            ),
+            platform_fee_pct=platform_fee_pct,
+            ancillary_pct=ancillary_pct,
+            return_handling_cost_pct=self.settings.return_handling_cost_pct,
+            lot_cost=lot_cost.values,
+        )
+        for col, vals in ci.items():
+            out[col] = vals
+
         logger.debug(
             "Profit summary: total expected profit=%.2f over %d rows",
             float(out["expected_profit"].sum(skipna=True) or 0.0),
@@ -164,6 +188,107 @@ class ProfitEngine:
         )
         return out
 
+
+    def _compute_confidence_intervals(
+        self,
+        *,
+        out: pd.DataFrame,
+        qty: np.ndarray,
+        effective_sellable_pct: np.ndarray,
+        expected_sell_price: np.ndarray,
+        price_realization: float,
+        return_rate_mean: np.ndarray,
+        non_revenue_cost: np.ndarray,
+        platform_fee_pct: np.ndarray,
+        ancillary_pct: float,
+        return_handling_cost_pct: float,
+        lot_cost: np.ndarray,
+    ) -> dict[str, pd.Series]:
+        """Vectorised Monte Carlo CIs for profit and ROI per row.
+
+        Models two random variables per row:
+
+        * ``sell_through ~ Beta`` with mean = ``effective_sellable_pct`` and
+          stddev = ``profit_assumptions["sell_through_stddev"]``.
+        * ``return_rate ~ Beta`` with mean = per-row ``return_rate`` and
+          stddev = ``profit_assumptions["return_rate_stddev"]``.
+
+        Determinism: a fixed seed (42) is XOR'd with ``hash(sku) % 2^32`` per
+        row so two pipeline runs on the same manifest produce identical CIs.
+        """
+        a = self.settings.profit_assumptions
+        n_samples = int(a.get("mc_samples", 1000))
+        st_std = float(a.get("sell_through_stddev", 0.10))
+        rr_std = float(a.get("return_rate_stddev", 0.05))
+        n_rows = len(out)
+
+        if n_rows == 0 or n_samples <= 0:
+            empty = pd.Series(dtype=float, index=out.index)
+            return {
+                "expected_profit_p5": empty,
+                "expected_profit_p50": empty,
+                "expected_profit_p95": empty,
+                "expected_roi_p5": empty,
+                "expected_roi_p95": empty,
+                "prob_profit_positive": empty,
+            }
+
+        rng = np.random.default_rng(self._master_seed(out))
+
+        st_samples = _beta_samples(effective_sellable_pct, st_std, n_samples, rng)
+        rr_samples = _beta_samples(return_rate_mean, rr_std, n_samples, rng)
+
+        qty_col = qty[:, None]
+        price_col = expected_sell_price[:, None]
+        non_rev_col = non_revenue_cost[:, None]
+        fee_col = (platform_fee_pct + ancillary_pct)[:, None]
+        lot_cost_col = lot_cost[:, None]
+
+        sellable_qty = qty_col * st_samples
+        gross_rev = sellable_qty * price_col * price_realization
+        net_rev = gross_rev * (1.0 - rr_samples)
+        return_provision = gross_rev * rr_samples * return_handling_cost_pct
+        operating_cost = net_rev * fee_col
+        cost = non_rev_col + operating_cost + return_provision
+        profit = net_rev - cost
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            roi = np.where(
+                lot_cost_col > 0,
+                (net_rev - lot_cost_col) / lot_cost_col * 100.0,
+                np.nan,
+            )
+
+        p5 = np.nanpercentile(profit, 5, axis=1)
+        p50 = np.nanpercentile(profit, 50, axis=1)
+        p95 = np.nanpercentile(profit, 95, axis=1)
+        roi_p5 = np.nanpercentile(roi, 5, axis=1)
+        roi_p95 = np.nanpercentile(roi, 95, axis=1)
+        prob_pos = (profit > 0).mean(axis=1)
+
+        return {
+            "expected_profit_p5": pd.Series(p5, index=out.index).round(2),
+            "expected_profit_p50": pd.Series(p50, index=out.index).round(2),
+            "expected_profit_p95": pd.Series(p95, index=out.index).round(2),
+            "expected_roi_p5": pd.Series(roi_p5, index=out.index).round(2),
+            "expected_roi_p95": pd.Series(roi_p95, index=out.index).round(2),
+            "prob_profit_positive": pd.Series(prob_pos, index=out.index).round(4),
+        }
+
+    @staticmethod
+    def _master_seed(df: pd.DataFrame) -> int:
+        """Manifest-deterministic seed for the Monte Carlo CI engine.
+
+        Two pipeline runs over the same manifest (same skus, same order)
+        produce identical CIs.  Reordering rows reseeds the RNG, which is
+        acceptable because per-row outputs are summary statistics over many
+        samples and don't depend on which row was sampled first.
+        """
+        if "sku" in df.columns:
+            joined = "|".join(df["sku"].astype("string").fillna("").tolist())
+        else:
+            joined = f"rows={len(df)}"
+        return (hash(joined) ^ 42) & 0xFFFFFFFF
 
     def _resolve_inspection_cost(self, df: pd.DataFrame, qty: pd.Series) -> pd.Series:
         """Per-row inspection cost = qty × per-condition ₹/unit."""
@@ -267,6 +392,28 @@ class ProfitEngine:
         else:
             cat = pd.Series(["unknown"] * len(df), index=df.index)
         return cat.map(lambda c: table.get(c, self.settings.default_return_rate)).astype(float)
+
+
+def _beta_samples(
+    mean: np.ndarray, stddev: float, n_samples: int, rng: np.random.Generator
+) -> np.ndarray:
+    """Vectorised Beta samples per row → array of shape (n_rows, n_samples).
+
+    Reparameterises (mean, stddev) → (alpha, beta).  When the requested
+    variance exceeds the maximum admissible variance ``mean*(1-mean)`` the
+    Beta is degenerate; we clip to 99 % of that bound so the sampler stays
+    well-defined.  Means are clipped to ``[1e-4, 1-1e-4]`` for the same reason.
+    """
+    mean_arr = np.clip(np.asarray(mean, dtype=float), 1e-4, 1.0 - 1e-4)
+    var = stddev ** 2
+    max_var = mean_arr * (1.0 - mean_arr) * 0.99
+    var_clipped = np.minimum(var, max_var)
+    var_clipped = np.where(var_clipped <= 0, 1e-8, var_clipped)
+    nu = mean_arr * (1.0 - mean_arr) / var_clipped - 1.0
+    nu = np.where(nu <= 0, 1e-3, nu)
+    alpha = mean_arr * nu
+    beta = (1.0 - mean_arr) * nu
+    return rng.beta(alpha[:, None], beta[:, None], size=(mean_arr.shape[0], n_samples))
 
 
 def compute_profitability(

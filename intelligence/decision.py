@@ -86,6 +86,30 @@ class DecisionEngine:
         return_provision = float(df.get("return_provision", pd.Series([0.0]*len(df))).sum())
         total_cost = float(df.get("expected_cost", pd.Series([0.0]*len(df))).sum())
 
+        # T-306: lot-level confidence bands aggregated from per-row CI.
+        # Per-row p5/p50/p95 of profit are summed to get lot-level bands.
+        # This implicitly assumes perfectly-correlated row outcomes (a
+        # conservative-realistic approximation for a single-lot purchase
+        # decision), and is much cheaper than re-sampling at the lot level.
+        profit_p5 = float(pd.to_numeric(df.get("expected_profit_p5", pd.Series([0.0]*len(df))), errors="coerce").fillna(0).sum())
+        profit_p50 = float(pd.to_numeric(df.get("expected_profit_p50", pd.Series([0.0]*len(df))), errors="coerce").fillna(0).sum())
+        profit_p95 = float(pd.to_numeric(df.get("expected_profit_p95", pd.Series([0.0]*len(df))), errors="coerce").fillna(0).sum())
+
+        # Lot-level ROI band: profit-band / total-acquisition-cost.
+        floor_col = pd.to_numeric(df.get("floor_price", pd.Series([0.0]*len(df))), errors="coerce").fillna(0)
+        total_lot_cost = float((qty * floor_col).sum())
+        if total_lot_cost > 0:
+            roi_band_low = (profit_p5 / total_lot_cost) * 100.0
+            roi_band_med = (profit_p50 / total_lot_cost) * 100.0
+            roi_band_high = (profit_p95 / total_lot_cost) * 100.0
+        else:
+            roi_band_low = roi_band_med = roi_band_high = 0.0
+
+        # prob_lot_profitable: qty-weighted average of per-row prob_profit_positive.
+        prob_col = pd.to_numeric(df.get("prob_profit_positive", pd.Series([0.0]*len(df))), errors="coerce").fillna(0)
+        weights_total = float(qty.sum())
+        prob_lot_profitable = float((prob_col * qty).sum() / weights_total) if weights_total > 0 else 0.0
+
         roi_series = pd.to_numeric(df.get("expected_roi_pct", pd.Series([0.0]*len(df))), errors="coerce").dropna()
         roi_low = float(roi_series.quantile(0.25)) if not roi_series.empty else 0.0
         roi_median = float(roi_series.quantile(0.50)) if not roi_series.empty else 0.0
@@ -193,7 +217,18 @@ class DecisionEngine:
             "margin": round(margin, 2),
             "platform_mix": platform_mix,
             "decision": decision,
-            "decision_reasons": reasons
+            "decision_reasons": reasons,
+            "profit_band_90pct": {
+                "low": round(profit_p5, 2),
+                "median": round(profit_p50, 2),
+                "high": round(profit_p95, 2),
+            },
+            "roi_band_90pct": {
+                "low": round(roi_band_low, 2),
+                "median": round(roi_band_med, 2),
+                "high": round(roi_band_high, 2),
+            },
+            "prob_lot_profitable": round(prob_lot_profitable, 4),
         })
 
         return summary

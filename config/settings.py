@@ -77,6 +77,15 @@ PROFIT_ASSUMPTIONS: Mapping[str, float] = {
     "price_realization_factor": 1.0,
     # Floor multiplier to absorb hidden costs of acquiring the lot.
     "acquisition_overhead_pct": 0.05,
+    # Stddev of the per-row sell-through fraction used by the Monte Carlo
+    # confidence-interval engine (T-306).  Operator-judgement default until
+    # T-205/T-302 measure realised variance.
+    "sell_through_stddev": 0.10,
+    # Stddev of the per-row return rate used by the Monte Carlo CI engine.
+    "return_rate_stddev": 0.05,
+    # Monte Carlo sample count per row.  1000 is the spec default; reduce to
+    # 500 if the runtime cost is unacceptable on very large manifests.
+    "mc_samples": 1000,
 }
 
 # --------------------------------------------------------------------------
