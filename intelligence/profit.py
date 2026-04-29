@@ -8,11 +8,14 @@ intentionally simple — assumptions are exposed so the operator can
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from config.settings import Settings, get_settings
+from intelligence.sell_through_model import load_model
+from intelligence.velocity import estimate_velocity, load_velocity_store
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -81,10 +84,14 @@ class ProfitEngine:
 
         sellable_factor = self._condition_multipliers(out)
 
-        # min(base, condition_factor) — see docstring for rationale.
+        # Dynamic sell-through from ML model or velocity store (T-304/T-302).
         base_sellable_pct = a.get("expected_sellable_pct", 0.65)
-        effective_sellable_pct = np.minimum(base_sellable_pct, sellable_factor)
+        static_prior = np.minimum(base_sellable_pct, sellable_factor)
+        velocity_estimate, velocity_confidence = self._resolve_velocity(out, static_prior)
+        effective_sellable_pct = (velocity_confidence * velocity_estimate) + ((1.0 - velocity_confidence) * static_prior)
         sellable_qty = (qty * effective_sellable_pct).round(2)
+        out["velocity_estimate"] = pd.Series(velocity_estimate, index=out.index).round(4)
+        out["velocity_confidence"] = pd.Series(velocity_confidence, index=out.index).round(4)
 
         # No double discounting: real_price is the final expected_sell_price
         expected_sell_price = real_price
@@ -394,6 +401,27 @@ class ProfitEngine:
         return cat.map(lambda c: table.get(c, self.settings.default_return_rate)).astype(float)
 
 
+
+    def _resolve_velocity(self, df: pd.DataFrame, static_prior: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        model_path = Path("data/models/sell_through_v1.pkl")
+        try:
+            if model_path.exists():
+                model = load_model(model_path)
+                pred = model.predict(df)
+                df["sell_through_pred"] = pred["sell_through_pred"].round(4)
+                df["sell_through_conf"] = pred["sell_through_conf"].round(4)
+                return pred["sell_through_pred"].to_numpy(dtype=float), pred["sell_through_conf"].to_numpy(dtype=float)
+        except Exception:
+            logger.exception("Sell-through model load/predict failed; falling back")
+
+        store = load_velocity_store()
+        vel = []
+        conf = []
+        for i, row in df.iterrows():
+            v, c = estimate_velocity(row, store, self.settings)
+            vel.append(v)
+            conf.append(c)
+        return np.asarray(vel, dtype=float), np.asarray(conf, dtype=float)
 def _beta_samples(
     mean: np.ndarray, stddev: float, n_samples: int, rng: np.random.Generator
 ) -> np.ndarray:

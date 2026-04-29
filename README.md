@@ -512,3 +512,7 @@ Project conventions live in `CLAUDE.md`.  Highlights:
 ## 8. License
 
 MIT.
+
+- Dynamic velocity: profit engine now blends static sell-through priors with SKU/category history from `data/velocity/store.json` and optional ML model confidence.
+- Update velocity store: `python -m tools.velocity_update --outcomes data/historical/lot_X.csv`
+- Retrain sell-through model: `python -m tools.train_sell_through --history data/historical/*.csv --out data/models/sell_through_v1.pkl`
