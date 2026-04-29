@@ -43,9 +43,17 @@ PRIMARY_COLUMNS: tuple[str, ...] = (
     "transport_cost",
     "return_rate",
     "return_provision",
+    "holding_days",
+    "holding_cost",
     "expected_profit",
+    "expected_profit_p5",
+    "expected_profit_p50",
+    "expected_profit_p95",
     "expected_margin_pct",
     "expected_roi_pct",
+    "expected_roi_p5",
+    "expected_roi_p95",
+    "prob_profit_positive",
     "scenario_roi_low",
     "scenario_roi_median",
     "scenario_roi_high",
@@ -235,18 +243,21 @@ class Reporter:
             inspection = float(subset.get("inspection_cost", pd.Series([0.0])).sum(skipna=True))
             transport = float(subset.get("transport_cost", pd.Series([0.0])).sum(skipna=True))
             returns = float(subset.get("return_provision", pd.Series([0.0])).sum(skipna=True))
+            holding = float(subset.get("holding_cost", pd.Series([0.0])).sum(skipna=True))
 
             acq_pct = (acquisition / cost * 100.0) if cost > 0 else 0.0
             plat_pct = (platform_fees / cost * 100.0) if cost > 0 else 0.0
             insp_pct = (inspection / cost * 100.0) if cost > 0 else 0.0
             trans_pct = (transport / cost * 100.0) if cost > 0 else 0.0
             ret_pct = (returns / cost * 100.0) if cost > 0 else 0.0
+            hold_pct = (holding / cost * 100.0) if cost > 0 else 0.0
 
             lines.append(f"    acquisition      : {acquisition:>12,.2f} ({acq_pct:>5.1f}%)")
             lines.append(f"    platform fees    : {platform_fees:>12,.2f} ({plat_pct:>5.1f}%)")
             lines.append(f"    inspection       : {inspection:>12,.2f} ({insp_pct:>5.1f}%)")
             lines.append(f"    transport        : {transport:>12,.2f} ({trans_pct:>5.1f}%)")
             lines.append(f"    return provision : {returns:>12,.2f} ({ret_pct:>5.1f}%)")
+            lines.append(f"    holding cost     : {holding:>12,.2f} ({hold_pct:>5.1f}%)")
             lines.append(f"    --------")
             lines.append(f"    total cost       : {cost:>12,.2f}")
             lines.append("")

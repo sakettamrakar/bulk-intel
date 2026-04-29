@@ -10,8 +10,14 @@ represents the brand's printed retail price.
 """
 from __future__ import annotations
 
+import json
+import logging
+import os
 from dataclasses import dataclass, field
-from typing import Mapping
+from pathlib import Path
+from typing import Any, Mapping
+
+_log = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------
 # Scoring weights
@@ -92,6 +98,15 @@ PROFIT_ASSUMPTIONS: Mapping[str, float] = {
     "price_realization_factor": 1.0,
     # Floor multiplier to absorb hidden costs of acquiring the lot.
     "acquisition_overhead_pct": 0.05,
+    # Stddev of the per-row sell-through fraction used by the Monte Carlo
+    # confidence-interval engine (T-306).  Operator-judgement default until
+    # T-205/T-302 measure realised variance.
+    "sell_through_stddev": 0.10,
+    # Stddev of the per-row return rate used by the Monte Carlo CI engine.
+    "return_rate_stddev": 0.05,
+    # Monte Carlo sample count per row.  1000 is the spec default; reduce to
+    # 500 if the runtime cost is unacceptable on very large manifests.
+    "mc_samples": 1000,
 }
 
 # --------------------------------------------------------------------------
@@ -442,6 +457,35 @@ RETURN_HANDLING_COST_PCT: float = 0.30
 # Fallback return rate for unknown categories.
 DEFAULT_RETURN_RATE: float = 0.10
 
+# --------------------------------------------------------------------------
+# Capital cost / holding period (T-303)
+# --------------------------------------------------------------------------
+
+# Expected days of inventory holding from purchase to last unit cleared.
+# Pulled from operator's category-specific historical clearance curves.
+# Tune annually as marketplace velocity shifts.
+CATEGORY_HOLDING_DAYS: Mapping[str, int] = {
+    "electronics":  60,
+    "appliances":   75,
+    "kitchen":      90,
+    "kitchenware":  90,
+    "home":         90,
+    "apparel":     120,    # seasonal, slow
+    "beauty":       60,
+    "toys":        100,
+    "books":       180,    # long tail
+    "stationery":  120,
+    "unknown":      90,
+}
+
+# Annualised cost of capital + storage (warehouse rent + WIP financing).
+# Basis: ~6 % RBI repo + ~12 % blended warehouse rent / WIP financing for a
+# typical Indian SMB liquidator.  Self-funded operators may use 10 %; leveraged
+# operators 20 %+.  Tune per operator.
+CAPITAL_COST_PER_YEAR_PCT: float = 0.18
+
+DEFAULT_HOLDING_DAYS: int = 90
+
 @dataclass(frozen=True)
 class Settings:
     """Immutable bundle of tunables passed through the pipeline."""
@@ -476,17 +520,73 @@ class Settings:
     category_return_rate: Mapping[str, float] = field(default_factory=lambda: dict(CATEGORY_RETURN_RATE))
     return_handling_cost_pct: float = RETURN_HANDLING_COST_PCT
     default_return_rate: float = DEFAULT_RETURN_RATE
+    category_holding_days: Mapping[str, int] = field(
+        default_factory=lambda: dict(CATEGORY_HOLDING_DAYS)
+    )
+    capital_cost_per_year_pct: float = CAPITAL_COST_PER_YEAR_PCT
+    default_holding_days: int = DEFAULT_HOLDING_DAYS
     channel_routing_rules: tuple[Mapping[str, object], ...] = field(
         default_factory=lambda: tuple(CHANNEL_ROUTING_RULES)
     )
     brand_aliases: Mapping[str, str] = field(default_factory=lambda: dict(BRAND_ALIASES))
 
 
+DEFAULT_PRIORS_PATH: str = "config/priors/latest.json"
+
+
+def _load_priors_if_exists(path: str | os.PathLike[str]) -> Mapping[str, Any]:
+    """Return parsed priors JSON, or an empty dict if the file is missing.
+
+    Never raises on missing file — operators may run the engine before any
+    feedback loop has been kicked off.  Malformed JSON or unexpected keys
+    are logged and ignored.
+    """
+    p = Path(path)
+    if not p.exists():
+        _log.info("priors file %s missing — using in-code defaults", p)
+        return {}
+    try:
+        with p.open("r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        _log.warning("failed to read priors %s (%s) — using defaults", p, exc)
+        return {}
+    if not isinstance(data, dict):
+        _log.warning("priors %s is not an object — using defaults", p)
+        return {}
+    return data
+
+
 def get_settings() -> Settings:
     """Return the default ``Settings`` bundle.
 
-    Tests and notebooks may construct a ``Settings`` directly with overrides;
-    production callers should always go through this function so future
-    enhancements (env-var loading, YAML config) have a single seam.
+    Honours the ``BULK_INTEL_PRIORS_PATH`` env var (falling back to
+    ``config/priors/latest.json``) for the T-305 outcome feedback loop:
+    if the file exists, three keys override the module-level constants:
+
+    * ``category_return_rate``
+    * ``category_holding_days``
+    * ``condition_to_sell_through``
+
+    All other Settings fields keep their in-code defaults.  Missing or
+    malformed files are silently ignored.
     """
-    return Settings()
+    priors_path = os.getenv("BULK_INTEL_PRIORS_PATH", DEFAULT_PRIORS_PATH)
+    overrides = _load_priors_if_exists(priors_path)
+
+    if not overrides:
+        return Settings()
+
+    kwargs: dict[str, Any] = {}
+    if isinstance(overrides.get("category_return_rate"), dict):
+        kwargs["category_return_rate"] = dict(overrides["category_return_rate"])
+    if isinstance(overrides.get("category_holding_days"), dict):
+        kwargs["category_holding_days"] = {
+            k: int(v) for k, v in overrides["category_holding_days"].items()
+        }
+    if isinstance(overrides.get("condition_to_sell_through"), dict):
+        kwargs["condition_to_sell_through"] = {
+            k: dict(v) for k, v in overrides["condition_to_sell_through"].items()
+        }
+
+    return Settings(**kwargs)
