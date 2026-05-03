@@ -3,6 +3,10 @@ numpy>=1.24.0
 openpyxl>=3.1.0
 pyyaml>=6.0
 python-dateutil>=2.8.0
+rapidfuzz>=3.9.0
+requests>=2.31.0
+tenacity>=8.2.0
+cachetools>=5.3.0
 
 # Optional API layer (used in future iterations)
 fastapi>=0.110.0

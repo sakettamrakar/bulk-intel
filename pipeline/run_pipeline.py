@@ -26,6 +26,7 @@ from enrichment.catalog_loader import load_catalog
 from ingestion.loader import ManifestLoader
 from intelligence.channel import ChannelRouter
 from intelligence.decision import DecisionEngine
+from intelligence.homogeneity import HomogeneityEngine
 from intelligence.pricing import PricingEngine
 from intelligence.profit import ProfitEngine
 from intelligence.scenario import compute_scenarios
@@ -80,9 +81,10 @@ class Pipeline:
         loader = ManifestLoader()
         cleaner = ManifestCleaner(self.settings)
         enricher = Enricher(
-            providers=list(self.providers),
+            providers=self._price_providers(),
             bsr_providers=list(self.bsr_providers) if self.bsr_providers else None
         )
+        homogeneity = HomogeneityEngine(self.settings)
         pricing = PricingEngine(self.settings)
         scoring = ScoringEngine(self.settings)
         profit = ProfitEngine(self.settings)
@@ -93,6 +95,7 @@ class Pipeline:
         df = cleaner.clean(df)
         df = ChannelRouter(self.settings).route(df)
         df = enricher.enrich(df)
+        df = homogeneity.annotate(df)
         df = pricing.compute(df)
         df = scoring.compute(df)
         df = profit.compute(df)
@@ -108,15 +111,38 @@ class Pipeline:
         df = ManifestCleaner(self.settings).clean(df)
         df = ChannelRouter(self.settings).route(df)
         df = Enricher(
-            providers=list(self.providers),
+            providers=self._price_providers(),
             bsr_providers=list(self.bsr_providers) if self.bsr_providers else None
         ).enrich(df)
+        df = HomogeneityEngine(self.settings).annotate(df)
         df = PricingEngine(self.settings).compute(df)
         df = ScoringEngine(self.settings).compute(df)
         df = ProfitEngine(self.settings).compute(df)
         df = compute_scenarios(df, self.settings)
         df = DecisionEngine(self.settings).decide(df)
         return df
+
+    def _price_providers(self) -> list[PriceProvider]:
+        providers = list(self.providers)
+        if not self.settings.serp_provider_enabled:
+            return providers
+        if not os.getenv(self.settings.serp_api_key_env):
+            logger.info(
+                "SERP provider enabled but %s is unset; skipping provider",
+                self.settings.serp_api_key_env,
+            )
+            return providers
+        if any(getattr(provider, "name", "") == "serp_amazon" for provider in providers):
+            return providers
+        from enrichment.serp_price_provider import SerpAmazonPriceProvider
+
+        serp_provider = SerpAmazonPriceProvider(settings=self.settings)
+        insert_at = next(
+            (idx for idx, provider in enumerate(providers) if getattr(provider, "name", "") == "mrp_heuristic"),
+            len(providers),
+        )
+        providers.insert(insert_at, serp_provider)
+        return providers
 
 
 def run_pipeline(input_path: str | Path, output_dir: str | Path) -> dict[str, Path]:

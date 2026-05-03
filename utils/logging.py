@@ -16,6 +16,35 @@ _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 _configured = False
 
 
+class _EnvRedactionFilter(logging.Filter):
+    """Redact known secret env var values from log records."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        secrets = [
+            value for key, value in os.environ.items()
+            if key.startswith("SERPAPI_") and value
+        ]
+        if not secrets:
+            return True
+        message = str(record.msg)
+        args = record.args
+        for secret in secrets:
+            message = message.replace(secret, "[REDACTED]")
+            if isinstance(args, tuple):
+                args = tuple(
+                    arg.replace(secret, "[REDACTED]") if isinstance(arg, str) else arg
+                    for arg in args
+                )
+            elif isinstance(args, dict):
+                args = {
+                    key: value.replace(secret, "[REDACTED]") if isinstance(value, str) else value
+                    for key, value in args.items()
+                }
+        record.msg = message
+        record.args = args
+        return True
+
+
 def _configure_root() -> None:
     """Configure the root logger once per process."""
     global _configured
@@ -27,6 +56,7 @@ def _configure_root() -> None:
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter(_LOG_FORMAT, datefmt=_DATE_FORMAT))
+    handler.addFilter(_EnvRedactionFilter())
 
     root = logging.getLogger()
     root.handlers = [handler]

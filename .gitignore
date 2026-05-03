@@ -57,7 +57,8 @@ htmlcov/
 Thumbs.db
 
 # Project artifacts
-output/reports/
+output/reports/*
+!output/reports/sample_manifest_report_summary.json
 output/exports/
 *.log
 .env

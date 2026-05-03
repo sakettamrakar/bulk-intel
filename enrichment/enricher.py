@@ -13,13 +13,15 @@ Output columns added:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Mapping, Protocol, runtime_checkable
 
 import numpy as np
 import pandas as pd
 
 from enrichment.bsr_provider import BSRProvider
+from config.settings import Settings, get_settings
+from intelligence.matching import compute_match_score
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -44,14 +46,13 @@ class PriceProvider(Protocol):
 
 
 
-import difflib
-
 @dataclass(frozen=True)
 class FuzzyCatalogPriceProvider:
     """Resolve prices by fuzzy matching product names against a catalog."""
     catalog: list[dict] # list of dicts with 'product_name', 'amazon_price', 'wholesale_price'
     name: str = "fuzzy_catalog"
     confidence_threshold: float = 0.6
+    settings: Settings = field(default_factory=get_settings)
 
     def lookup(self, row: pd.Series) -> tuple[float | None, float | None, float]:
         name = row.get("product_name_clean") or row.get("product_name")
@@ -59,24 +60,30 @@ class FuzzyCatalogPriceProvider:
             return (None, None, 0.0)
 
         best_match = None
-        best_ratio = 0.0
-        name_lower = name.lower()
+        best_result = None
 
         for item in self.catalog:
             cat_name = item.get("product_name", "")
             if not cat_name:
                 continue
-            ratio = difflib.SequenceMatcher(None, name_lower, cat_name.lower()).ratio()
-            if ratio > best_ratio:
-                best_ratio = ratio
+            candidate = {
+                "title": cat_name,
+                "brand": item.get("brand"),
+                "category": item.get("category"),
+            }
+            result = compute_match_score(row, candidate, self.settings)
+            if result.decision == "reject":
+                continue
+            if best_result is None or result.score > best_result.score:
+                best_result = result
                 best_match = item
 
-        if best_match and best_ratio >= self.confidence_threshold:
+        if best_match and best_result and best_result.score >= self.confidence_threshold:
             amazon = best_match.get("amazon_price")
             wholesale = best_match.get("wholesale_price")
-            return (amazon, wholesale, best_ratio)
+            return (amazon, wholesale, best_result.score)
 
-        return (None, None, best_ratio)
+        return (None, None, 0.0)
 
 # ---------------------------------------------------------------------------
 # Concrete providers

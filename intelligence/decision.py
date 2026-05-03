@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from config.settings import Settings, get_settings
+from intelligence.homogeneity import HomogeneityEngine
 from intelligence.scoring import apply_confidence_gate
 from utils.logging import get_logger
 
@@ -230,6 +231,7 @@ class DecisionEngine:
             },
             "prob_lot_profitable": round(prob_lot_profitable, 4),
         })
+        summary["homogeneity"] = HomogeneityEngine(self.settings).lot_scores(df)
 
         return summary
 

@@ -15,6 +15,7 @@ logger = get_logger(__name__)
 # raw manifest still flow through but won't lead the report.
 PRIMARY_COLUMNS: tuple[str, ...] = (
     "sku",
+    "sku_cluster_id",
     "product_name_clean",
     "brand",
     "raw_category",
@@ -126,7 +127,9 @@ class Reporter:
         if df.empty:
             return pd.DataFrame()
 
-        if "sku" in df.columns and df["sku"].nunique() / len(df) < 0.5:
+        if "sku_cluster_id" in df.columns and df["sku_cluster_id"].notna().any():
+            group_key_col = "sku_cluster_id"
+        elif "sku" in df.columns and df["sku"].nunique() / len(df) < 0.5:
             group_key_col = "sku"
         elif "brand" in df.columns and "product_name_clean" in df.columns:
             group_key_col = "group_key"

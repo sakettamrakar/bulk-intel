@@ -165,9 +165,13 @@ bulk-intel/
 3. **Enrichment** (`enrichment/enricher.py`)
    - Resolves `amazon_price`, `wholesale_price`, `match_confidence`,
      `unreliable_match` via a chain of `PriceProvider`s.  Default
-     chain: `MRPHeuristicPriceProvider`.  A `FuzzyCatalogPriceProvider`
-     ships out of the box for `difflib`-based matching against an
-     in-memory catalog.
+     chain: catalog lookup, then MRP heuristic. All product-price
+     providers share `intelligence.matching.compute_match_score` for
+     auditable confidence scoring.
+   - Optional live Amazon.in prices can be fetched through the structured
+     SERP provider (`SerpAmazonPriceProvider`). It is off by default,
+     uses a SERP API rather than scraping Amazon or Google HTML, and is
+     inserted after the local catalog but before the MRP heuristic.
    - The MRP heuristic anchors **new-condition** retail price
      (default `0.80 × MRP`); condition factors mark down sell-through
      downstream so we don't double-discount.
@@ -185,6 +189,15 @@ bulk-intel/
      low-quantity, category risk, thin-margin, **and condition risk**
      (e.g. `not_tested` adds +60, `defective` adds +90 before
      weighting).
+5.5. **Homogeneity** (`intelligence/homogeneity.py`)
+   - Adds `sku_cluster_id`, `brand_cluster_id`, and
+     `category_cluster_id` for downstream grouping and UI decisions.
+   - Emits lot-level `sku_homogeneity`, `brand_homogeneity`, and
+     `category_homogeneity` under `df.attrs["lot_summary"]["homogeneity"]`.
+   - Uses entropy concentration:
+     `score = 1 - H / ln(N)`, where `H = -sum(p_i * ln(p_i))`.
+     A single cluster scores `1.0`; a uniform spread across clusters
+     scores `0.0`.
 6. **Profitability** (`intelligence/profit.py`)
    - Projects `expected_sellable_qty`, `expected_sell_price`,
      `expected_revenue`, `transport_cost`, `inspection_cost`,
@@ -303,6 +316,22 @@ python -m tools.feedback_update \
   --apply
 ```
 
+### Live SERP prices
+
+Live Amazon.in price discovery is opt-in and uses a structured SERP API.
+Catalog prices are still tried first; SERP runs only before the MRP
+fallback fills remaining gaps. A 1,000-row uncached manifest can incur
+SERP API cost, so the SQLite cache defaults to a 1-week TTL.
+
+```bash
+export SERPAPI_API_KEY=your_key_here
+export BULK_INTEL_SERP_PROVIDER_ENABLED=1
+
+python -m pipeline.run_pipeline \
+  --input data/sample_manifest.csv \
+  --output output/reports
+```
+
 Each run produces four files in `--output`:
 
 ```
@@ -348,7 +377,15 @@ Example JSON lot summary (real manifest):
     "Low ROI",
     "Strong brand mix",
     "Lot is largely untested — inspection cost dominates"
-  ]
+  ],
+  "homogeneity": {
+    "sku_homogeneity": 0.14,
+    "brand_homogeneity": 0.44,
+    "category_homogeneity": 0.67,
+    "sku_homogeneity_label": "Highly fragmented",
+    "brand_homogeneity_label": "Mixed lot",
+    "category_homogeneity_label": "Moderately homogeneous"
+  }
 }
 ```
 
@@ -423,6 +460,21 @@ Open `config/settings.py` to tune behaviour. Common knobs:
 | `DECISION_THRESHOLDS["min_expected_margin_pct"]`     | Min margin-on-revenue for BUY                                   |
 | `DECISION_THRESHOLDS["min_expected_roi_pct"]`        | Min ROI-on-cost for BUY                                         |
 | `DECISION_THRESHOLDS["min_buy_match_confidence"]`    | Min match confidence for BUY (missing column defaults to 1.0)   |
+| `HOMOGENEITY_FILLER_TOKENS`                          | Title tokens ignored before SKU clustering                      |
+| `HOMOGENEITY_MODEL_TOKEN_PATTERN`                    | Regex for model identifiers used by clustering and matching     |
+| `HOMOGENEITY_SKU_FUZZ_CUTOFF`                        | RapidFuzz token-sort cutoff for non-model SKU clustering        |
+| `HOMOGENEITY_THRESHOLDS`                             | Label bands for lot homogeneity scores                          |
+| `MATCH_TOKEN_WEIGHTS`                                | Product-match feature weights for model, brand, type, extras    |
+| `MATCH_ACCEPT_THRESHOLD`                             | Match score required to accept an external listing              |
+| `MATCH_WEAK_THRESHOLD`                               | Lower band for weak matches                                     |
+| `MATCH_BRAND_MISMATCH_OVERRIDE`                      | Raw score required to override a string-level brand mismatch    |
+| `SERP_PROVIDER_ENABLED`                              | Opt-in switch for structured SERP Amazon price lookup           |
+| `SERP_API_KEY_ENV` / `SERP_BACKEND`                  | SERP API key env var name and backend selector                  |
+| `SERP_RATE_LIMIT_PER_SEC` / `SERP_TIMEOUT_S`         | Client-side rate limit and request timeout                      |
+| `SERP_MAX_RETRIES`                                   | Retry count for transient SERP failures                         |
+| `SERP_CACHE_PATH` / `SERP_CACHE_TTL_HOURS`           | SQLite cache location and stale-entry TTL                       |
+| `SERP_RESULTS_PER_QUERY`                             | Number of organic SERP results scanned per row                  |
+| `SERP_ALLOW_WEAK_FALLBACK`                           | Allows weak matches only when no accepted candidates exist      |
 | `CONDITION_TO_SELL_THROUGH`                          | Per-condition `(sellable_factor, risk_score)` map               |
 | `DEMAND_SCORE`                                       | Per-category prior ("How many people want this category?")      |
 | `CATEGORY_LIQUIDITY_SCORE`                           | Per-category prior ("How fast a single seller's inventory clears")|
@@ -452,12 +504,17 @@ Set `BULK_INTEL_LOG_LEVEL=DEBUG` for verbose stage logs.
 - **Real market prices**: implement a class with the `PriceProvider`
   Protocol — `name: str` and
   `lookup(row) -> (amazon, wholesale, confidence)` — and pass it into
-  `Pipeline(providers=[...])`. No other module changes.
+  `Pipeline(providers=[...])`. Use
+  `intelligence.matching.compute_match_score` as the canonical product
+  matcher so confidence semantics stay consistent across providers.
+- **How to plug a different SERP backend**: implement the `SerpClient`
+  Protocol in `enrichment/serp_price_provider.py` and pass it to
+  `SerpAmazonPriceProvider(settings=..., serp_client=...)`.
 - **How to add a new platform**: Add a mapping rule to `CHANNEL_ROUTING_RULES` in `config/settings.py` identifying your new platform string, and ensure `PLATFORM_FEES` covers it.
 - **How to add a brand alias**: Add a mapping to `BRAND_ALIASES` in `config/settings.py` from the snake_cased raw brand string to your desired canonical brand string.
-- **Fuzzy catalog matching**: `FuzzyCatalogPriceProvider` executes
-  `difflib`-based name matching with a configurable confidence
-  threshold. The default pipeline automatically wires in `india_top1k_v1.json`.
+- **Fuzzy catalog matching**: `FuzzyCatalogPriceProvider` uses the
+  shared product scorer with a configurable confidence threshold. The
+  default pipeline automatically wires in `india_top1k_v1.json`.
 - **How to swap or extend the catalog**: Point the `BULK_INTEL_CATALOG_PATH` environment variable to a JSON file matching the schema in `data/catalog/india_top1k_v1.json`. This is ideal for adding new SKUs on the fly.
 - **How to override priors (T-305)**: point `BULK_INTEL_PRIORS_PATH` to a JSON snapshot in the `config/priors/` schema. `get_settings()` overlays `category_return_rate`, `category_holding_days`, and `condition_to_sell_through` on top of the in-code defaults; missing or malformed files fall back silently. The default path is `config/priors/latest.json`.
 - **New condition labels**: add a row to `CONDITION_TO_SELL_THROUGH`

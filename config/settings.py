@@ -160,6 +160,56 @@ CONDITION_TO_SELL_THROUGH: Mapping[str, Mapping[str, float]] = {
 }
 
 # --------------------------------------------------------------------------
+# Homogeneity and product matching
+# --------------------------------------------------------------------------
+
+HOMOGENEITY_FILLER_TOKENS: frozenset[str] = frozenset({
+    "the", "a", "an", "of", "for", "with", "and", "or",
+    "new", "open", "box", "lot", "pack", "set",
+    "black", "white", "blue", "red", "grey", "gray", "silver",
+    "small", "medium", "large", "xl", "xxl",
+    "ml", "g", "kg", "cm", "mm", "inch", "in",
+})
+
+HOMOGENEITY_MODEL_TOKEN_PATTERN: str = (
+    r"\b(?:[A-Z]{1,5}-?\d{2,6}[A-Z0-9-]*|\d{2,3}[A-Z]{2,5}|[BX]0[A-Z0-9]{8})\b"
+)
+
+HOMOGENEITY_SKU_FUZZ_CUTOFF: int = 88
+
+HOMOGENEITY_THRESHOLDS: Mapping[str, float] = {
+    "highly_homogeneous": 0.85,
+    "moderately_homogeneous": 0.60,
+    "mixed": 0.30,
+}
+
+MATCH_TOKEN_WEIGHTS: Mapping[str, float] = {
+    "model": 0.50,
+    "brand": 0.30,
+    "product_type": 0.15,
+    "extra_tokens": 0.05,
+}
+
+MATCH_ACCEPT_THRESHOLD: float = 0.80
+MATCH_WEAK_THRESHOLD: float = 0.65
+MATCH_BRAND_MISMATCH_OVERRIDE: float = 0.92
+
+# --------------------------------------------------------------------------
+# Optional structured SERP price provider
+# --------------------------------------------------------------------------
+
+SERP_PROVIDER_ENABLED: bool = False
+SERP_API_KEY_ENV: str = "SERPAPI_API_KEY"
+SERP_BACKEND: str = "serpapi"
+SERP_RATE_LIMIT_PER_SEC: float = 1.0
+SERP_TIMEOUT_S: float = 8.0
+SERP_MAX_RETRIES: int = 3
+SERP_CACHE_PATH: str = ".cache/serp_cache.sqlite"
+SERP_CACHE_TTL_HOURS: int = 24 * 7
+SERP_RESULTS_PER_QUERY: int = 5
+SERP_ALLOW_WEAK_FALLBACK: bool = False
+
+# --------------------------------------------------------------------------
 # Domain heuristics (kept here so non-engineers can tweak)
 # --------------------------------------------------------------------------
 
@@ -529,6 +579,24 @@ class Settings:
         default_factory=lambda: tuple(CHANNEL_ROUTING_RULES)
     )
     brand_aliases: Mapping[str, str] = field(default_factory=lambda: dict(BRAND_ALIASES))
+    homogeneity_filler_tokens: frozenset[str] = field(default_factory=lambda: frozenset(HOMOGENEITY_FILLER_TOKENS))
+    homogeneity_model_token_pattern: str = HOMOGENEITY_MODEL_TOKEN_PATTERN
+    homogeneity_sku_fuzz_cutoff: int = HOMOGENEITY_SKU_FUZZ_CUTOFF
+    homogeneity_thresholds: Mapping[str, float] = field(default_factory=lambda: dict(HOMOGENEITY_THRESHOLDS))
+    match_token_weights: Mapping[str, float] = field(default_factory=lambda: dict(MATCH_TOKEN_WEIGHTS))
+    match_accept_threshold: float = MATCH_ACCEPT_THRESHOLD
+    match_weak_threshold: float = MATCH_WEAK_THRESHOLD
+    match_brand_mismatch_override: float = MATCH_BRAND_MISMATCH_OVERRIDE
+    serp_provider_enabled: bool = SERP_PROVIDER_ENABLED
+    serp_api_key_env: str = SERP_API_KEY_ENV
+    serp_backend: str = SERP_BACKEND
+    serp_rate_limit_per_sec: float = SERP_RATE_LIMIT_PER_SEC
+    serp_timeout_s: float = SERP_TIMEOUT_S
+    serp_max_retries: int = SERP_MAX_RETRIES
+    serp_cache_path: str = SERP_CACHE_PATH
+    serp_cache_ttl_hours: int = SERP_CACHE_TTL_HOURS
+    serp_results_per_query: int = SERP_RESULTS_PER_QUERY
+    serp_allow_weak_fallback: bool = SERP_ALLOW_WEAK_FALLBACK
 
 
 DEFAULT_PRIORS_PATH: str = "config/priors/latest.json"
@@ -588,5 +656,9 @@ def get_settings() -> Settings:
         kwargs["condition_to_sell_through"] = {
             k: dict(v) for k, v in overrides["condition_to_sell_through"].items()
         }
+
+    env_enabled = os.getenv("BULK_INTEL_SERP_PROVIDER_ENABLED")
+    if env_enabled is not None:
+        kwargs["serp_provider_enabled"] = env_enabled.lower() in {"1", "true", "yes", "on"}
 
     return Settings(**kwargs)
