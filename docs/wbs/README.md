@@ -82,19 +82,23 @@ operator view.
 | [T-309](phase-3/T-309-google-serp-amazon-price-provider.md) | Google SERP Amazon price provider (live prices for unseen SKUs) | 16 h | T-307, T-308 |
 | [T-310](phase-3/T-310-canonical-product-groups.md) | Canonical product groups (search-ready groupings) | 8 h | T-307 |
 | [T-311](phase-3/T-311-partial-serp-execution-and-coverage.md) | Partial SERP execution & coverage telemetry (preview / incremental / full) | 14 h | T-309, T-310 |
+| [T-312](phase-3/T-312-playwright-serp-fallback.md) | Playwright Google SERP fallback client (operator-assisted, capped) | 12 h | T-309, T-311 |
 
 **Phase 3 exit criteria**: every BUY decision ships with a 90 % CI on profit /
 ROI; engine measurably improves on each new realised lot fed back through T-305;
 operators see lot-level homogeneity scores and can fall back to live SERP prices
 for SKUs the catalog misses; large manifests run in **preview mode** by default
 and surface inventory-value-weighted coverage so the operator can decide whether
-to commit to a full SERP enrichment.
+to commit to a full SERP enrichment; the engine still runs end-to-end without a
+SerpAPI subscription via an operator-assisted Playwright fallback bounded to a
+small per-run query cap.
 
 T-307 → T-308 → T-309 → T-310 → T-311 form a self-contained sequential strand:
 each unlocks the next, and a single implementer can pick them up in order
 without external dependencies. T-310 and T-311 are the scaling layer: they
 make the SERP path safe to run on 12 k-row manifests by enriching at the
-*group* level and gating execution by inventory-value triage.
+*group* level and gating execution by inventory-value triage. T-312 is an
+optional, capped fallback that lets the engine run cold with no paid API.
 
 ---
 
@@ -128,3 +132,4 @@ Update this section when a task ships.
 | T-309 | Not started | — | — |
 | T-310 | Not started | — | — |
 | T-311 | Not started | — | — |
+| T-312 | Not started | — | — |
