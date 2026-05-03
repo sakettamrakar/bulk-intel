@@ -77,9 +77,18 @@ operator view.
 | [T-304](phase-3/T-304-ml-sell-through-model.md) | ML model for sell-through (replaces static condition factor) | 24 h | T-205, T-302 |
 | [T-305](phase-3/T-305-outcome-feedback-loop.md) | Outcome feedback loop (closes the prior-update cycle) | 12 h | T-205 |
 | [T-306](phase-3/T-306-confidence-intervals.md) | Confidence intervals on every projection | 8 h | T-205 |
+| [T-307](phase-3/T-307-lot-homogeneity-engine.md) | Lot homogeneity engine (SKU / brand / category entropy scores) | 10 h | — |
+| [T-308](phase-3/T-308-product-match-scorer.md) | Product match scoring engine (shared by all PriceProviders) | 12 h | T-307 |
+| [T-309](phase-3/T-309-google-serp-amazon-price-provider.md) | Google SERP Amazon price provider (live prices for unseen SKUs) | 16 h | T-307, T-308 |
 
 **Phase 3 exit criteria**: every BUY decision ships with a 90 % CI on profit /
-ROI; engine measurably improves on each new realised lot fed back through T-305.
+ROI; engine measurably improves on each new realised lot fed back through T-305;
+operators see lot-level homogeneity scores and can fall back to live SERP prices
+for SKUs the catalog misses.
+
+T-307 → T-308 → T-309 form a self-contained sequential strand: each unlocks the
+next, and a single implementer can pick them up in order without external
+dependencies.
 
 ---
 
@@ -108,3 +117,6 @@ Update this section when a task ships.
 | T-304 | Not started | — | — |
 | T-305 | Not started | — | — |
 | T-306 | Not started | — | — |
+| T-307 | Not started | — | — |
+| T-308 | Not started | — | — |
+| T-309 | Not started | — | — |
