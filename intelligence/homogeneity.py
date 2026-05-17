@@ -159,7 +159,8 @@ def interpret_homogeneity(score: float, settings: Settings) -> str:
     return "Highly fragmented"
 
 
-def _extract_model_tokens(title: str, settings: Settings) -> tuple[str, ...]:
+def model_tokens(title: str, settings: Settings) -> tuple[str, ...]:
+    """Return canonical model tokens using the configured homogeneity regex."""
     if not isinstance(title, str):
         return ()
     pattern = re.compile(settings.homogeneity_model_token_pattern, re.I)
@@ -171,6 +172,10 @@ def _extract_model_tokens(title: str, settings: Settings) -> tuple[str, ...]:
             seen.add(token)
             tokens.append(token)
     return tuple(tokens)
+
+
+def _extract_model_tokens(title: str, settings: Settings) -> tuple[str, ...]:
+    return model_tokens(title, settings)
 
 
 def _canonical_model_token(token: str) -> str:

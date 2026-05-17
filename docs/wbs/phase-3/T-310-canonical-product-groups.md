@@ -6,7 +6,7 @@
 | Effort | 8 hours |
 | Depends on | T-307 (provides `sku_cluster_id` + model-token regex) |
 | Blocks | T-311 |
-| Status | Not started |
+| Status | Implemented |
 
 ---
 

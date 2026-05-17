@@ -123,12 +123,23 @@ class SerpAmazonPriceProvider:
 
     def __post_init__(self) -> None:
         if self.serp_client is None:
-            self.serp_client = SerpAPIClient(self.settings)
+            from enrichment.serp_backend_factory import build_serp_client
+
+            self.serp_client = build_serp_client(self.settings)
         if self.cache is None:
             self.cache = SerpCache(
                 self.settings.serp_cache_path,
                 ttl_hours=self.settings.serp_cache_ttl_hours,
             )
+
+    def with_client(self, serp_client: SerpClient) -> "SerpAmazonPriceProvider":
+        """Return a provider clone using the same settings/cache and a new client."""
+        return SerpAmazonPriceProvider(
+            settings=self.settings,
+            serp_client=serp_client,
+            cache=self.cache,
+            name=self.name,
+        )
 
     def lookup(self, row: pd.Series) -> tuple[float | None, float | None, float]:
         title = str(row.get("product_name_clean") or row.get("product_name") or "").strip()
@@ -155,6 +166,8 @@ class SerpAmazonPriceProvider:
                 {
                     "amazon_price": None,
                     "match_confidence": 0.0,
+                    "search_signature": normalized_title,
+                    "brand": str(row.get("brand") or ""),
                     "matched_titles": [],
                     "matched_urls": [],
                 },
@@ -169,6 +182,8 @@ class SerpAmazonPriceProvider:
             {
                 "amazon_price": price,
                 "match_confidence": confidence,
+                "search_signature": normalized_title,
+                "brand": str(row.get("brand") or ""),
                 "matched_titles": [item["title"] for item in selected],
                 "matched_urls": [item.get("url", "") for item in selected],
             },

@@ -6,7 +6,7 @@
 | Effort | 12 hours |
 | Depends on | T-309 (`SerpClient` Protocol + `SerpCache`), T-311 (top-N limit semantics) |
 | Blocks | — |
-| Status | Not started |
+| Status | Implemented |
 
 ---
 

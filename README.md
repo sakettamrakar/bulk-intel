@@ -172,6 +172,10 @@ bulk-intel/
      SERP provider (`SerpAmazonPriceProvider`). It is off by default,
      uses a SERP API rather than scraping Amazon or Google HTML, and is
      inserted after the local catalog but before the MRP heuristic.
+   - If SerpAPI is unavailable, an explicit Playwright fallback can drive
+     a headed Chromium browser for capped operator-assisted preview runs.
+     Read [`docs/operator/playwright-fallback.md`](docs/operator/playwright-fallback.md)
+     before enabling it.
    - The MRP heuristic anchors **new-condition** retail price
      (default `0.80 × MRP`); condition factors mark down sell-through
      downstream so we don't double-discount.
@@ -198,6 +202,26 @@ bulk-intel/
      `score = 1 - H / ln(N)`, where `H = -sum(p_i * ln(p_i))`.
      A single cluster scores `1.0`; a uniform spread across clusters
      scores `0.0`.
+5.6. **Canonical groups** (`intelligence/grouping.py`)
+   - Converts lossless SKU clusters into search-ready product groups.
+     `sku_cluster_id` remains the row-level cluster for homogeneity and
+     fallback rollups; `group_id` is the value-prioritized unit used for
+     SERP execution.
+   - Builds a lossy `search_signature` such as `logitech mouse M185`
+     by dropping variant tokens like colors, sizes, and pack wording
+     while preserving brand, product type, and model identity.
+   - Publishes `df.attrs["_groups"]` with `canonical_title`,
+     `group_total_quantity`, `group_total_value`, `variant_count`, and
+     `eligible_for_search`.
+5.7. **Partial SERP enrichment** (`enrichment/serp_orchestrator.py`)
+   - Runs optional structured SERP lookup by group, not by row.
+     `preview` searches the top-N value groups, `incremental` resumes
+     unfinished groups from a JSON state file, and `full` searches every
+     eligible group.
+   - Joins completed group prices back to member rows before pricing.
+   - Adds `search_execution_summary` and `cache_stats` to the lot JSON,
+     including row coverage, inventory-value coverage, completed counts,
+     failures, and cache hits/misses/expired entries.
 6. **Profitability** (`intelligence/profit.py`)
    - Projects `expected_sellable_qty`, `expected_sell_price`,
      `expected_revenue`, `transport_cost`, `inspection_cost`,
@@ -332,11 +356,63 @@ python -m pipeline.run_pipeline \
   --output output/reports
 ```
 
+### Preview mode for big manifests
+
+Preview mode prices only the highest-value groups first. BUY/REVIEW
+recommendations from preview runs are provisional because lower-priority
+groups still rely on catalog or heuristic prices.
+
+```bash
+python -m pipeline.run_pipeline \
+  --input data/big_manifest.xlsx --output output/reports \
+  --execution-mode preview --serp-preview-limit 20
+```
+
+Resume the same state file with incremental mode:
+
+```bash
+python -m pipeline.run_pipeline \
+  --input data/big_manifest.xlsx --output output/reports \
+  --execution-mode incremental
+```
+
+Run every eligible group:
+
+```bash
+python -m pipeline.run_pipeline \
+  --input data/big_manifest.xlsx --output output/reports \
+  --execution-mode full
+```
+
+Cache invalidation CLI:
+
+```text
+usage: python -m tools.cache_invalidate
+       (--by-signature TEXT | --by-brand TEXT | --older-than-hours N | --all)
+```
+
+### Run without a SerpAPI key
+
+The Playwright fallback is opt-in and capped. It opens a persistent headed
+browser by default so the operator can solve CAPTCHAs manually.
+
+```bash
+python -m playwright install chromium
+
+export BULK_INTEL_PLAYWRIGHT_FALLBACK=1
+export BULK_INTEL_PLAYWRIGHT_HEADLESS=0
+
+python -m pipeline.run_pipeline \
+  --input data/sample_manifest.csv \
+  --output output/reports \
+  --execution-mode preview --serp-preview-limit 10
+```
+
 Each run produces four files in `--output`:
 
 ```
 <input_stem>_report.csv          # ranked, fully scored line items
-<input_stem>_report_rollup.csv   # rolled-up view grouped by SKU or product name
+<input_stem>_report_rollup.csv   # rolled-up view grouped by canonical product group
 <input_stem>_report_summary.txt  # human-readable per-basket economics
 <input_stem>_report_summary.json # machine-readable lot summary
 ```
@@ -344,8 +420,8 @@ Each run produces four files in `--output`:
 Example `_rollup.csv` snippet:
 
 ```csv
-group_key,units,mrp,floor_price,real_price,expected_revenue,expected_cost,expected_profit,expected_roi_pct,sellability_score,risk_score,condition_normalized,recommendation,unit_recommendation_mix
-Pigeon | Mixer Grinder,412,4500.0,318.0,1200.0,494400.0,131016.0,363384.0,277.36,88.5,12.0,new,BUY,BUY:412 REVIEW:0 SKIP:0
+group_key,canonical_title,search_signature,group_total_quantity,group_total_value,variant_count,eligible_for_search,serp_attempted,serp_completed,execution_stage,expected_revenue,expected_cost,expected_profit,expected_roi_pct
+g0,Apple Airpods Pro,apple airpods pro,2,37800.0,1,True,False,False,queued,13690.76,43421.99,-29731.23,-68.47
 ```
 
 Example JSON lot summary (real manifest):
@@ -464,6 +540,9 @@ Open `config/settings.py` to tune behaviour. Common knobs:
 | `HOMOGENEITY_MODEL_TOKEN_PATTERN`                    | Regex for model identifiers used by clustering and matching     |
 | `HOMOGENEITY_SKU_FUZZ_CUTOFF`                        | RapidFuzz token-sort cutoff for non-model SKU clustering        |
 | `HOMOGENEITY_THRESHOLDS`                             | Label bands for lot homogeneity scores                          |
+| `SEARCH_SIGNATURE_DROP_TOKENS`                       | Variant tokens stripped only for SERP search signatures         |
+| `CANONICAL_TITLE_MAX_LEN`                            | Hard ceiling for canonical group title/search signature length  |
+| `MIN_GROUP_QUANTITY_FOR_SEARCH`                      | Quantity floor for group SERP eligibility                       |
 | `MATCH_TOKEN_WEIGHTS`                                | Product-match feature weights for model, brand, type, extras    |
 | `MATCH_ACCEPT_THRESHOLD`                             | Match score required to accept an external listing              |
 | `MATCH_WEAK_THRESHOLD`                               | Lower band for weak matches                                     |
@@ -475,6 +554,17 @@ Open `config/settings.py` to tune behaviour. Common knobs:
 | `SERP_CACHE_PATH` / `SERP_CACHE_TTL_HOURS`           | SQLite cache location and stale-entry TTL                       |
 | `SERP_RESULTS_PER_QUERY`                             | Number of organic SERP results scanned per row                  |
 | `SERP_ALLOW_WEAK_FALLBACK`                           | Allows weak matches only when no accepted candidates exist      |
+| `SERP_PREVIEW_LIMIT`                                 | Default top-N group count for preview SERP execution            |
+| `SERP_STATE_PATH`                                    | JSON state file for incremental SERP resume                     |
+| `SERP_VALUE_COVERAGE_TARGET`                         | Target value share for `groups_needed_for_value_target`         |
+| `PLAYWRIGHT_FALLBACK_ENABLED`                        | Opt-in switch for headed-browser SERP fallback                  |
+| `PLAYWRIGHT_HEADLESS`                                | Browser mode; defaults false for human-in-the-loop operation    |
+| `PLAYWRIGHT_MAX_QUERIES_PER_RUN`                     | Hard cap on fallback queries per run                            |
+| `PLAYWRIGHT_RATE_LIMIT_SECONDS`                      | Minimum delay between fallback Google queries                   |
+| `PLAYWRIGHT_RATE_LIMIT_JITTER_SECONDS`               | Uniform jitter around the Playwright query delay                |
+| `PLAYWRIGHT_PROFILE_PATH`                            | Persistent Chromium profile path for cookies/login state        |
+| `PLAYWRIGHT_PAGE_TIMEOUT_S`                          | Timeout for page navigation and normal result waits             |
+| `PLAYWRIGHT_CAPTCHA_TIMEOUT_S`                       | Headed-mode CAPTCHA solve window                                |
 | `CONDITION_TO_SELL_THROUGH`                          | Per-condition `(sellable_factor, risk_score)` map               |
 | `DEMAND_SCORE`                                       | Per-category prior ("How many people want this category?")      |
 | `CATEGORY_LIQUIDITY_SCORE`                           | Per-category prior ("How fast a single seller's inventory clears")|

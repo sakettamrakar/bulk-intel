@@ -7,6 +7,7 @@ rapidfuzz>=3.9.0
 requests>=2.31.0
 tenacity>=8.2.0
 cachetools>=5.3.0
+playwright>=1.44.0
 
 # Optional API layer (used in future iterations)
 fastapi>=0.110.0

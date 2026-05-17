@@ -1,0 +1,69 @@
+{
+  "total_items": 47.0,
+  "expected_sellable": 30.55,
+  "expected_revenue": 14759.42,
+  "expected_cost_breakdown": {
+    "acquisition": 11553.15,
+    "platform_fees": 2888.26,
+    "inspection": 2350.0,
+    "transport": 6690.0,
+    "return_provision": 348.02,
+    "total": 24106.72
+  },
+  "roi_low": 1.21,
+  "roi_median": 41.59,
+  "roi_high": 60.45,
+  "high_unknown_condition_pct": 0.0,
+  "untested_pct": 100.0,
+  "defect_pct": 0.0,
+  "low_match_confidence_pct": 0.0,
+  "high_price_uncertainty": false,
+  "margin": -63.33,
+  "platform_mix": {
+    "amazon": {
+      "items": 4,
+      "expected_revenue": 1367.84,
+      "expected_profit": -680.24
+    },
+    "flipkart": {
+      "items": 43,
+      "expected_revenue": 13391.58,
+      "expected_profit": -8667.07
+    },
+    "meesho": {
+      "items": 0,
+      "expected_revenue": 0.0,
+      "expected_profit": 0.0
+    },
+    "b2b": {
+      "items": 0,
+      "expected_revenue": 0.0,
+      "expected_profit": 0.0
+    }
+  },
+  "decision": "REVIEW",
+  "decision_reasons": [
+    "High ROI",
+    "Strong brand mix",
+    "Lot is largely untested \u2014 inspection cost dominates"
+  ],
+  "profit_band_90pct": {
+    "low": -12715.31,
+    "median": -9279.75,
+    "high": -6100.83
+  },
+  "roi_band_90pct": {
+    "low": -115.56,
+    "median": -84.34,
+    "high": -55.45
+  },
+  "prob_lot_profitable": 0.0346,
+  "homogeneity": {
+    "sku_homogeneity": 0.085615,
+    "sku_homogeneity_label": "Highly fragmented",
+    "brand_homogeneity": 1.0,
+    "brand_homogeneity_label": "Highly homogeneous",
+    "category_homogeneity": 0.580079,
+    "category_homogeneity_label": "Mixed lot"
+  }
+}

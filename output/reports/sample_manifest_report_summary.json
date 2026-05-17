@@ -48,16 +48,16 @@
     "Low sell-through risk"
   ],
   "profit_band_90pct": {
-    "low": -120102.46,
-    "median": -90342.41,
-    "high": -62325.63
+    "low": -119825.93,
+    "median": -89913.04,
+    "high": -61913.81
   },
   "roi_band_90pct": {
-    "low": -76.11,
-    "median": -57.25,
-    "high": -39.5
+    "low": -75.94,
+    "median": -56.98,
+    "high": -39.24
   },
-  "prob_lot_profitable": 0.2996,
+  "prob_lot_profitable": 0.306,
   "homogeneity": {
     "sku_homogeneity": 0.203177,
     "sku_homogeneity_label": "Highly fragmented",

@@ -209,6 +209,30 @@ SERP_CACHE_TTL_HOURS: int = 24 * 7
 SERP_RESULTS_PER_QUERY: int = 5
 SERP_ALLOW_WEAK_FALLBACK: bool = False
 
+SEARCH_SIGNATURE_DROP_TOKENS: frozenset[str] = frozenset({
+    "black", "white", "blue", "red", "grey", "gray", "silver", "gold",
+    "rose", "rosegold", "green", "yellow", "pink", "orange", "purple",
+    "brown", "beige", "cream", "ivory", "navy",
+    "small", "medium", "large", "xs", "s", "m", "l", "xl", "xxl",
+    "pack", "packs", "set", "sets", "piece", "pieces", "pcs",
+    "combo", "kit", "left", "right", "wireless", "bluetooth",
+})
+CANONICAL_TITLE_MAX_LEN: int = 80
+MIN_GROUP_QUANTITY_FOR_SEARCH: int = 2
+
+SERP_PREVIEW_LIMIT: int = 10
+SERP_STATE_PATH: str = ".cache/serp_state.json"
+SERP_VALUE_COVERAGE_TARGET: float = 0.80
+
+PLAYWRIGHT_FALLBACK_ENABLED: bool = False
+PLAYWRIGHT_HEADLESS: bool = False
+PLAYWRIGHT_MAX_QUERIES_PER_RUN: int = 10
+PLAYWRIGHT_RATE_LIMIT_SECONDS: float = 8.0
+PLAYWRIGHT_RATE_LIMIT_JITTER_SECONDS: float = 2.0
+PLAYWRIGHT_PROFILE_PATH: str = ".cache/playwright/profile"
+PLAYWRIGHT_PAGE_TIMEOUT_S: float = 15.0
+PLAYWRIGHT_CAPTCHA_TIMEOUT_S: float = 180.0
+
 # --------------------------------------------------------------------------
 # Domain heuristics (kept here so non-engineers can tweak)
 # --------------------------------------------------------------------------
@@ -597,6 +621,20 @@ class Settings:
     serp_cache_ttl_hours: int = SERP_CACHE_TTL_HOURS
     serp_results_per_query: int = SERP_RESULTS_PER_QUERY
     serp_allow_weak_fallback: bool = SERP_ALLOW_WEAK_FALLBACK
+    search_signature_drop_tokens: frozenset[str] = field(default_factory=lambda: frozenset(SEARCH_SIGNATURE_DROP_TOKENS))
+    canonical_title_max_len: int = CANONICAL_TITLE_MAX_LEN
+    min_group_quantity_for_search: int = MIN_GROUP_QUANTITY_FOR_SEARCH
+    serp_preview_limit: int = SERP_PREVIEW_LIMIT
+    serp_state_path: str = SERP_STATE_PATH
+    serp_value_coverage_target: float = SERP_VALUE_COVERAGE_TARGET
+    playwright_fallback_enabled: bool = PLAYWRIGHT_FALLBACK_ENABLED
+    playwright_headless: bool = PLAYWRIGHT_HEADLESS
+    playwright_max_queries_per_run: int = PLAYWRIGHT_MAX_QUERIES_PER_RUN
+    playwright_rate_limit_seconds: float = PLAYWRIGHT_RATE_LIMIT_SECONDS
+    playwright_rate_limit_jitter_seconds: float = PLAYWRIGHT_RATE_LIMIT_JITTER_SECONDS
+    playwright_profile_path: str = PLAYWRIGHT_PROFILE_PATH
+    playwright_page_timeout_s: float = PLAYWRIGHT_PAGE_TIMEOUT_S
+    playwright_captcha_timeout_s: float = PLAYWRIGHT_CAPTCHA_TIMEOUT_S
 
 
 DEFAULT_PRIORS_PATH: str = "config/priors/latest.json"
@@ -660,5 +698,11 @@ def get_settings() -> Settings:
     env_enabled = os.getenv("BULK_INTEL_SERP_PROVIDER_ENABLED")
     if env_enabled is not None:
         kwargs["serp_provider_enabled"] = env_enabled.lower() in {"1", "true", "yes", "on"}
+    env_pw = os.getenv("BULK_INTEL_PLAYWRIGHT_FALLBACK")
+    if env_pw is not None:
+        kwargs["playwright_fallback_enabled"] = env_pw.lower() in {"1", "true", "yes", "on"}
+    env_pw_headless = os.getenv("BULK_INTEL_PLAYWRIGHT_HEADLESS")
+    if env_pw_headless is not None:
+        kwargs["playwright_headless"] = env_pw_headless.lower() in {"1", "true", "yes", "on"}
 
     return Settings(**kwargs)

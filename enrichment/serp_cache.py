@@ -11,7 +11,18 @@ import json
 import sqlite3
 import time
 from pathlib import Path
+from dataclasses import dataclass
 from typing import Any, Callable
+
+
+@dataclass(frozen=True)
+class CacheStats:
+    """Per-process cache counters plus live SQLite row count."""
+
+    hits: int
+    misses: int
+    expired: int
+    size: int
 
 
 class SerpCache:
@@ -26,6 +37,9 @@ class SerpCache:
         self.path = Path(path)
         self.ttl_seconds = int(ttl_hours * 3600)
         self._now_fn = now_fn or time.time
+        self._hits = 0
+        self._misses = 0
+        self._expired = 0
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
@@ -36,15 +50,22 @@ class SerpCache:
                 (key,),
             ).fetchone()
         if row is None:
+            self._misses += 1
             return None
         payload, created_at = row
         if self._now() - int(created_at) > self.ttl_seconds:
+            self._expired += 1
             return None
         try:
             data = json.loads(payload)
         except json.JSONDecodeError:
+            self._misses += 1
             return None
-        return data if isinstance(data, dict) else None
+        if not isinstance(data, dict):
+            self._misses += 1
+            return None
+        self._hits += 1
+        return data
 
     def set(self, key: str, payload: dict[str, Any]) -> None:
         encoded = json.dumps(payload, sort_keys=True)
@@ -61,11 +82,45 @@ class SerpCache:
             )
             conn.commit()
 
-    def purge(self, now: int | None = None) -> None:
-        cutoff = int(now if now is not None else self._now()) - self.ttl_seconds
+    def purge(self, now: int | None = None, older_than: int | None = None) -> int:
+        cutoff = int(older_than) if older_than is not None else int(now if now is not None else self._now()) - self.ttl_seconds
         with sqlite3.connect(self.path) as conn:
-            conn.execute("DELETE FROM serp_cache WHERE created_at < ?", (cutoff,))
+            cur = conn.execute("DELETE FROM serp_cache WHERE created_at < ?", (cutoff,))
             conn.commit()
+            return int(cur.rowcount)
+
+    def clear(self) -> int:
+        with sqlite3.connect(self.path) as conn:
+            cur = conn.execute("DELETE FROM serp_cache")
+            conn.commit()
+            return int(cur.rowcount)
+
+    def invalidate_by_payload_field(self, field: str, value: str) -> int:
+        needle = value.lower()
+        deleted = 0
+        with sqlite3.connect(self.path) as conn:
+            rows = conn.execute("SELECT key, payload FROM serp_cache").fetchall()
+            for key, payload in rows:
+                try:
+                    data = json.loads(payload)
+                except json.JSONDecodeError:
+                    continue
+                field_value = str(data.get(field, "")).lower()
+                if needle in field_value:
+                    conn.execute("DELETE FROM serp_cache WHERE key = ?", (key,))
+                    deleted += 1
+            conn.commit()
+        return deleted
+
+    def stats(self) -> CacheStats:
+        with sqlite3.connect(self.path) as conn:
+            size = int(conn.execute("SELECT COUNT(*) FROM serp_cache").fetchone()[0])
+        return CacheStats(
+            hits=self._hits,
+            misses=self._misses,
+            expired=self._expired,
+            size=size,
+        )
 
     def _init_db(self) -> None:
         with sqlite3.connect(self.path) as conn:

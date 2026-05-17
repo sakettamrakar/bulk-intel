@@ -98,7 +98,10 @@ class Reporter:
         if not rollup.empty:
             outputs["rollup"] = rollup_path
 
-        lot_summary = df.attrs.get("lot_summary", {})
+        lot_summary = dict(df.attrs.get("lot_summary", {}))
+        if df.attrs.get("search_execution_summary"):
+            lot_summary["search_execution_summary"] = df.attrs["search_execution_summary"]
+            lot_summary["cache_stats"] = df.attrs["search_execution_summary"].get("cache_stats", {})
         if lot_summary:
             import json
             json_path.write_text(json.dumps(lot_summary, indent=2), encoding="utf-8")
@@ -126,6 +129,11 @@ class Reporter:
     def _build_rollup(df: pd.DataFrame) -> pd.DataFrame:
         if df.empty:
             return pd.DataFrame()
+
+        if "_groups" in df.attrs:
+            rollup = Reporter._rollup_from_groups(df.attrs["_groups"], df)
+            if not rollup.empty:
+                return rollup
 
         if "sku_cluster_id" in df.columns and df["sku_cluster_id"].notna().any():
             group_key_col = "sku_cluster_id"
@@ -204,6 +212,43 @@ class Reporter:
         rollup_df = rollup_df.sort_values(by="expected_profit", ascending=False).reset_index(drop=True)
             
         return rollup_df
+
+    @staticmethod
+    def _rollup_from_groups(groups: pd.DataFrame, df: pd.DataFrame) -> pd.DataFrame:
+        if groups is None or groups.empty:
+            return pd.DataFrame()
+        rows = []
+        for _, group in groups.iterrows():
+            skus = set(group.get("group_member_skus") or ())
+            subset = df[df["sku"].astype(str).isin(skus)] if skus and "sku" in df.columns else pd.DataFrame()
+            expected_revenue = float(subset.get("expected_revenue", pd.Series(dtype=float)).sum()) if not subset.empty else 0.0
+            expected_cost = float(subset.get("expected_cost", pd.Series(dtype=float)).sum()) if not subset.empty else 0.0
+            expected_profit = float(subset.get("expected_profit", pd.Series(dtype=float)).sum()) if not subset.empty else 0.0
+            roi_pct = (expected_profit / expected_cost * 100.0) if expected_cost > 0 else 0.0
+            rows.append({
+                "group_key": group.get("group_id"),
+                "canonical_title": group.get("canonical_title"),
+                "search_signature": group.get("search_signature"),
+                "group_total_quantity": group.get("group_total_quantity"),
+                "group_total_value": group.get("group_total_value"),
+                "variant_count": group.get("variant_count"),
+                "eligible_for_search": group.get("eligible_for_search"),
+                "serp_attempted": group.get("serp_attempted", False),
+                "serp_completed": group.get("serp_completed", False),
+                "serp_source_found": group.get("serp_source_found", False),
+                "price_extracted": group.get("price_extracted", False),
+                "match_validated": group.get("match_validated", False),
+                "cache_hit": group.get("cache_hit", False),
+                "execution_stage": group.get("execution_stage", "queued"),
+                "error_kind": group.get("error_kind"),
+                "amazon_price": group.get("amazon_price"),
+                "match_confidence": group.get("match_confidence", 0.0),
+                "expected_revenue": expected_revenue,
+                "expected_cost": expected_cost,
+                "expected_profit": expected_profit,
+                "expected_roi_pct": round(roi_pct, 2),
+            })
+        return pd.DataFrame(rows)
 
     @staticmethod
     def _build_summary(df: pd.DataFrame) -> str:

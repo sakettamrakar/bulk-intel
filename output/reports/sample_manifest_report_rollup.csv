@@ -1,0 +1,16 @@
+group_key,canonical_title,search_signature,group_total_quantity,group_total_value,variant_count,eligible_for_search,serp_attempted,serp_completed,serp_source_found,price_extracted,match_validated,cache_hit,execution_stage,error_kind,amazon_price,match_confidence,expected_revenue,expected_cost,expected_profit,expected_roi_pct
+g0,Apple Airpods Pro,apple airpods pro,2,37800.0,1,True,False,False,False,False,False,False,queued,,,0.0,13690.76,43421.99,-29731.23,-68.47
+g1,Stationery Notebook Diaries,stationery notebook diaries,50,20000.0,1,True,False,False,False,False,False,False,queued,,,0.0,35465.62,31050.48,4415.14,14.22
+g2,Philips Hd9216 Air Fryer 800W,philips air HD9216,3,14400.0,1,True,False,False,False,False,False,False,queued,,,0.0,7340.59,17846.19,-10505.59,-58.87
+g3,Samsung Galaxy Buds2 Wireless Earbuds,samsung galaxy buds2 earbuds,3,12600.0,1,True,False,False,False,False,False,False,queued,,,0.0,9153.47,15533.1,-6379.63,-41.07
+g4,Lg 32 Inch Hd Smart Tv,lg 32 hd smart tv,1,11500.0,1,False,False,False,False,False,False,False,queued,,,0.0,6359.33,13637.06,-7277.73,-53.37
+g5,Nike Running Shoes Mens Size 9,nike running shoes mens size 9,6,11100.0,1,True,False,False,False,False,False,False,queued,,,0.0,6837.66,13750.71,-6913.05,-50.27
+g6,Prestige Iris 750W Mixer Grinder 3 Jars,prestige iris 750w mixer grinder 3 jars,5,10500.0,1,True,False,False,False,False,False,False,queued,,,0.0,7473.89,14005.09,-6531.21,-46.63
+g7,Boat Rockerz 450 Bluetooth Headphone New,boat rockerz 450 headphone,8,7600.0,1,True,False,False,False,False,False,False,queued,,,0.0,6105.36,10152.26,-4046.9,-39.86
+g8,Cello Plastic Storage Container Set 18 Pcs,cello plastic storage container 18,30,6300.0,1,True,False,False,False,False,False,False,queued,,,0.0,6520.44,14215.53,-7695.09,-54.13
+g9,Havells Ceiling Fan 1200Mm,havells ceiling fan 1200mm,4,5960.0,1,True,False,False,False,False,False,False,queued,,,0.0,3618.34,7285.1,-3666.76,-50.33
+g10,Levi S Men S Slim Fit Jeans Size 32,levi men slim fit jeans size 32,4,5800.0,1,True,False,False,False,False,False,False,queued,,,0.0,3648.57,7260.87,-3612.3,-49.75
+g11,Lakme Absolute Skin Gloss Foundation 30Ml,lakme absolute 30ML,12,5040.0,1,True,False,False,False,False,False,False,queued,,,0.0,4580.55,7570.24,-2989.69,-39.49
+g12,Generic Stainless Steel Kitchen Knife Set,generic stainless steel kitchen knife,15,4650.0,1,True,False,False,False,False,False,False,queued,,,0.0,3668.26,8832.0,-5163.74,-58.47
+g13,Unknown Brand Bedsheet Double Bed,unknown brand bedsheet double bed,20,3600.0,1,True,False,False,False,False,False,False,queued,,,0.0,6593.3,6727.57,-134.27,-2.0
+g14,Random Toy Various Items,random toy various items,1,950.0,1,False,False,False,False,False,False,False,queued,,,0.0,993.35,1373.97,-380.61,-27.7

@@ -6,7 +6,7 @@
 | Effort | 14 hours |
 | Depends on | T-309 (SerpAmazonPriceProvider), T-310 (canonical groups) |
 | Blocks | — |
-| Status | Not started |
+| Status | Implemented |
 
 ---
 
